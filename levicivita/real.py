@@ -10,15 +10,29 @@ import unittest
 from . import *
 from .cpx import LeviCivitaComplex
 
-_UNARY_NAMES = '''exp log log10 sqrt 
+# math functions not covered (as of 3.7):
+#   factorial, gamma, lgamma
+#   frexp, ldexp
+#   fsum
+#   gcd
+#   remainder
+#   expm1, log1p
+#   erf, erfc
+
+_UNARY_NAMES = '''exp log log10 log2 sqrt hypot fabs modf
+                  degrees radians
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
                   isnan isinf isfinite'''.split()
 
+_BINARY_NAMES = '''atan2 copysign hypot log'''.split()
+
 _DUNDER_NAMES = '''ceil floor round trunc'''.split()
 
+_EXTRA_NAMES = tuple(_UNARY_NAMES + _BINARY_NAMES + _DUNDER_NAMES)
+
 __all__ = ('LeviCivitaFloat', 'epsilon', 'eps', 'd', 'ε', 'L',
-           'log', 'isclose', 'st', 'change_terms',
-           'e', 'nan', 'pi', 'tau', 'inf') + tuple(_UNARY_NAMES) + tuple(_DUNDER_NAMES)
+           'isclose', 'st', 'change_terms',
+           'e', 'nan', 'pi', 'tau', 'inf') + _EXTRA_NAMES
 
 # TODO: It would be nice if LeviCivitaFloat(2) * 1j gave you a
 # LeviCivitaComplex(2j) instead of a TypeError.
@@ -69,6 +83,50 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
     # ABC checks before total_ordering can help...
     def __le__(self, other):
         return self == other or self < other
+
+    def sign(self):
+        if self < 0:
+            return -1
+        elif self > 0:
+            return 1
+        else:
+            # handle -0.0, but only if there's no infinitesimal
+            return math.copysign(1, self.front)
+
+    @staticmethod
+    def _sign(value):
+        # -0.0+ε is positive, so only fall back to math.copysign for
+        # actual 0
+        if value < 0:
+            return -1
+        elif value > 0:
+            return 1
+        else:
+            if isinstance(value, LeviCivitaFloat):
+                return math.copysign(1, value.front)
+            else:
+                return math.copysign(1, value)
+        
+    def copysign(self, other):
+        flip = self._sign(self) * self._sign(other)        
+        return type(selF)(self.front * flip, self.leading,
+                          ((q, a * flip) for (q, a) in self.series))
+    
+    def fabs(self):
+        return abs(self)
+
+    def hypot(self, other):
+        return (self*self + other*other).sqrt()
+
+    def degrees(self):
+        return self * math.degrees(1)
+
+    def radians(self):
+        return self * math.radians(1)
+    
+    def modf(self):
+        intpart = trunc(self)
+        return self-intpart, intpart
     
     def __ceil__(self):
         if self.isinf():
@@ -105,15 +163,27 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
     def __rmod__(self, other):
         raise NotImplementedError # TODO
 
+    def conjugate(self):
+        return self
+    
+    @property
+    def real(self):
+        return self
+
+    @property
+    def imag(self):
+        raise type(self)()
+
     # TODO: There must be a way to refactor this nicely, but the need
-    #       to realify intermediate values makes it tricky...
+    #       to realify intermediate values makes it tricky... Although
+    #       even realifying intermediates doesn't keep the errors in
+    #       check, so maybe it isn't worth doing?
     
     @classmethod
     def _realify(cls, c, test=False):
         if test and not math.isclose(c.front.imag, 0, abs_tol=1e-15):
             raise ValueError('math domain error')
-        return cls(c.front.real, c.leading,
-                   tuple((q, a.real) for (q, a) in c.series))
+        return c.real
 
     def exp(self):
         return self._realify(LeviCivitaComplex(self).exp(), test=True)
@@ -123,6 +193,26 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
 
     def log10(self):
         return self.log(10)
+
+    def log2(self):
+        return self.log(2)
+
+    def atan2(self, other):
+        if other > 0:
+            return (self/other).atan()
+        elif other < 0:
+            if self >= 0:
+                return (self/other).atan() + math.pi
+            else:
+                return (self/other).atan() - math.pi
+        else:
+            if self >= 0:
+                return type(self)(math.pi/2)
+            elif self < 0:
+                return type(self)(-math.pi/2)
+            else:
+                # math.atan2(0, 0) is pi/2, not NaN
+                return type(self)()
 
 for name in 'cos sin tan acos asin atan cosh sinh tanh acosh asinh atanh'.split():
     exec(f'''
@@ -150,17 +240,22 @@ def {name}(x, **kw):
     except AttributeError:
         return math.{name}(x, **kw)
 """, globals())
-    
-del name
 
-def log(x, base=math.e):
+for name in _BINARY_NAMES:
+    exec(f"""
+def {name}(x, y, **kw):
     try:
-        return x.log(base)
+        return x.{name}(y, **kw)
     except AttributeError:
         pass
-    if isinstance(base, LeviCivitaBase):
-        return type(base)(x).log(base)
-    return math.log(x, base)
+    if isinstance(y, LeviCivitaFloat):
+        return type(y)(x).{name}(y, **kw))
+    if isinstance(y, LeviCivitaBase):
+        raise TypeError(f"can't convert {type(y).__name__} to LeviCivitaFloat")
+    return math.{name}(x, y, **kw)
+""", globals())
+
+del name
 
 def isclose(x, y, *, rel_tol=1e-09, abs_tol=0.0):
     try:

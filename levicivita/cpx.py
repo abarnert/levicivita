@@ -7,9 +7,11 @@ import numbers
 import unittest
 
 from . import *
+from .real import LeviCivitaReal
 
 _UNARY_NAMES = '''exp log log10 sqrt 
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
+                  phase polar
                   isnan isinf isfinite'''.split()
 
 # TODO: phase, polar, rect
@@ -23,16 +25,31 @@ class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
     _TYPE = complex
     _ABSTYPE = numbers.Complex
 
+    def conjugate(self):
+        return type(self)(self.front.conjugate(), self.leading,
+                          ((q, a.conjugate()) for (q, a) in self.series))
+    
+    @property
+    def real(self):
+        return LeviCivitaFloat(self.front.real, self.leading,
+                               ((q, a.real) for (q, a) in self.series))
+
+    @property
+    def imag(self):
+        return LeviCivitaFloat(self.front.imag, self.leading,
+                               ((q, a.imag) for (q, a) in self.series))
+
     def phase(self):
-        raise NotImplementedError # TODO
+        return self.imag.atan2(self.real)
 
     @classmethod
     def rect(cls, r, phi):
-        raise NotImplementedError # TODO
+        x = cls(r * cos(phi))
+        y = cls(r * sin(phi))
+        return x + y*j
 
-    @classmethod
     def polar(self):
-        raise NotImplementedError # TODO
+        return self.abs(), self.phase()        
 
     def exp(self):
         # TODO: is this correct?
@@ -141,8 +158,9 @@ def st(x):
     except AttributeError:
         return complex(x)
 
-# TODO: phase, polar, rect
-    
+def rect(r, phi):
+    return LeviCivitaComplex.rect(r, phi)
+
 epsilon = eps = d = ε = LeviCivitaComplex(1.0, 1)
 # TODO: should these all be LeviCivitaComplex(n)?
 e = cmath.e

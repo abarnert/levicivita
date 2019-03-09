@@ -287,6 +287,7 @@ compared to `math`.
 
 # History
 
+ * 0.0.4 2019-03-09: conjugate/real/imag, phase/polar/rect, more math
  * 0.0.3 2019-03-08: add diff
  * 0.0.2 2019-03-08: add floats, pull tests out
  * 0.0.1 2019-03-08: initial implementation
@@ -307,7 +308,6 @@ compared to `math`.
 
 # TODO
 
- * `conjugate`, `real`, `imag`, `phase`, `rect`, `polar` are missing.
  * `__floordiv__` and `__mod__` are missing.
  * Consider adding other functions from `math`.
  * Is there a better way to implement real transcendental functions?

@@ -11,7 +11,7 @@ import types
 import functools
 import inspect
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 def _debugmethod(func):
     return func
