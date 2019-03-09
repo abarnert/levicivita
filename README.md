@@ -91,6 +91,46 @@ if you need to:
 ... and likewise for `LeviCivitaFloat` (except of course that the
 `front` and the `series` coefficients must be real).
 
+# Automatic differentiation
+
+Given any Python function, you can calculate its derivative at any
+real or complex value. After all, the derivative is defined as
+`(f(x+ε) - f(x)) / ε`, and we can directly approximate that
+calculation. (In fact, this is the main use for Levi-Civita
+infinitesimals.)
+
+To play with this:
+
+    import diff
+	def func(x):
+	    return 2*x**3 + 3*x**2 + 4*x + 5
+	print(diff.derivative(func, 3))
+	print(diff.derivative(func, 3j))
+	
+This should print out something very close to `76` and `-50+18j`, the
+same values you'd get by manually implementing the derivative function
+as `6*x**2 + 6*x + 4`.
+
+However, there is a big caveat. The function above works because the
+only thing it does with `x` is apply operators to it. If you tried to,
+say, call `math.gamma`, or any other function (that isn't recursively
+ultimately defined in terms of operators), you'd just get a
+`TypeError`. Sometimes you can remove the function call (e.g., replace
+`math.exp(x)` with `math.e ** x`, or `cmath.sqrt(x)` with `x**.5`). If
+the function you want to call is one of the ones provided by the
+`levicivita.real` package, you can use that in place of `math` (and
+likewise for `cmath`); you can even monkeypatch some existing code's
+globals to do that if you really want to. But if it's calling some
+other function (or some C extension like `numpy`), there's really no
+way around that.
+
+Of course if you really want to do automatic differentiation, you
+could use a C implementation that hooks `libmath`. I believe
+[`COSY`](https://www.bt.pa.msu.edu/index_cosy.htm) offers that
+functionality, for example.
+
+But this should be enough to play with the idea.
+
 # Math
 
 Levi-Civita infinitesimals are not as powerful as hyperreals, but
@@ -247,8 +287,23 @@ compared to `math`.
 
 # History
 
+ * 0.0.3 2019-03-08: add diff
  * 0.0.2 2019-03-08: add floats, pull tests out
  * 0.0.1 2019-03-08: initial implementation
+
+# BUGS
+
+ * There's clearly something wrong with the transcendental functions.
+   For example, `sin(pi/8) - sin(pi/8-d)` should be infinitestimal,
+   but it has an error (in the standard part) of `7.8e-8`, which is
+   way too big to just discard. This breaks automatic differentiation,
+   as it makes the derivative infinite instead of `sqrt(2)`. The good
+   news is that the `inf` calculator gives almost the exact same
+   results, which implies this may be good enough for playing around
+   (as long as you don't try anything like automatic differentiation
+   of the transcendental functions). The bad news is that the `inf`
+   calculator gives almost the exact same result, which implies that
+   there's no better implementation to be found there....
 
 # TODO
 
