@@ -82,6 +82,12 @@ class TestLeviCivitaFloat(unittest.TestCase):
         with self.assertRaises(OverflowError):
             2**(1/feps)
 
+    def test_sign(self):
+        self.assertEqual((1-feps+feps**2).copysign(-1), -1+feps-feps**2)
+        self.assertEqual((-1+feps-feps**2).copysign(-1), -1+feps-feps**2)
+        self.assertEqual((1-feps+feps**2).copysign(F(-0.0)), -1+feps-feps**2)
+        self.assertEqual(math.copysign(1, F(0.0).copysign(-1).front), -1)
+
     def test_compare(self):
         self.assertLess(F(1), F(2))
         self.assertLess(feps, 1e-300)

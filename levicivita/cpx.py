@@ -7,7 +7,6 @@ import numbers
 import unittest
 
 from . import *
-from .real import LeviCivitaReal
 
 _UNARY_NAMES = '''exp log log10 sqrt 
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
@@ -24,6 +23,7 @@ class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
     _MATH = cmath
     _TYPE = complex
     _ABSTYPE = numbers.Complex
+    _REAL = None
 
     def conjugate(self):
         return type(self)(self.front.conjugate(), self.leading,
@@ -31,13 +31,13 @@ class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
     
     @property
     def real(self):
-        return LeviCivitaFloat(self.front.real, self.leading,
-                               ((q, a.real) for (q, a) in self.series))
+        return self._REAL(self.front.real, self.leading,
+                          ((q, a.real) for (q, a) in self.series))
 
     @property
     def imag(self):
-        return LeviCivitaFloat(self.front.imag, self.leading,
-                               ((q, a.imag) for (q, a) in self.series))
+        return self._REAL(self.front.imag, self.leading,
+                          ((q, a.imag) for (q, a) in self.series))
 
     def phase(self):
         return self.imag.atan2(self.real)
@@ -173,3 +173,7 @@ inf = cmath.inf
 infj = cmath.infj
 
 L = LeviCivitaComplex # TODO: move to test/__main__ only?
+
+from .real import LeviCivitaFloat as _REAL
+LeviCivitaComplex._REAL = _REAL
+del _REAL

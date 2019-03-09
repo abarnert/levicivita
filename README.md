@@ -287,6 +287,7 @@ compared to `math`.
 
 # History
 
+ * 0.0.5 2019-03-09: floordiv, mod
  * 0.0.4 2019-03-09: conjugate/real/imag, phase/polar/rect, more math
  * 0.0.3 2019-03-08: add diff
  * 0.0.2 2019-03-08: add floats, pull tests out

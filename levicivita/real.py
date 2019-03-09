@@ -8,7 +8,6 @@ import numbers
 import unittest
 
 from . import *
-from .cpx import LeviCivitaComplex
 
 # math functions not covered (as of 3.7):
 #   factorial, gamma, lgamma
@@ -24,24 +23,25 @@ _UNARY_NAMES = '''exp log log10 log2 sqrt hypot fabs modf
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
                   isnan isinf isfinite'''.split()
 
-_BINARY_NAMES = '''atan2 copysign hypot log'''.split()
+_BINARY_NAMES = '''atan2 copysign hypot'''.split()
 
 _DUNDER_NAMES = '''ceil floor round trunc'''.split()
 
 _EXTRA_NAMES = tuple(_UNARY_NAMES + _BINARY_NAMES + _DUNDER_NAMES)
 
 __all__ = ('LeviCivitaFloat', 'epsilon', 'eps', 'd', 'ε', 'L',
-           'isclose', 'st', 'change_terms',
+           'log', 'isclose', 'st', 'change_terms',
            'e', 'nan', 'pi', 'tau', 'inf') + _EXTRA_NAMES
 
 # TODO: It would be nice if LeviCivitaFloat(2) * 1j gave you a
-# LeviCivitaComplex(2j) instead of a TypeError.
+# _COMPLEX(2j) instead of a TypeError.
 
 @functools.total_ordering
 class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
     _MATH = math
     _TYPE = float
     _ABSTYPE = numbers.Real
+    _COMPLEX = None
 
     def __lt__(self, other):
         if not isinstance(other, numbers.Real):
@@ -108,9 +108,10 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
                 return math.copysign(1, value)
         
     def copysign(self, other):
-        flip = self._sign(self) * self._sign(other)        
-        return type(selF)(self.front * flip, self.leading,
-                          ((q, a * flip) for (q, a) in self.series))
+        ssign, osign = self._sign(self), self._sign(other)
+        flip = ssign*osign
+        front = self.front*flip if self.front else math.copysign(0.0, osign)
+        return type(self)(front, self.leading, self.series)
     
     def fabs(self):
         return abs(self)
@@ -152,16 +153,16 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
         return float(self.st())
 
     def __floordiv__(self, other):
-        raise NotImplementedError # TODO
+        return floor(self / other)
 
     def __rfloordiv__(self, other):
-        raise NotImplementedError # TODO
+        return floor(other / self)
 
     def __mod__(self, other):
-        raise NotImplementedError # TODO
+        return self - self//other
 
     def __rmod__(self, other):
-        raise NotImplementedError # TODO
+        return other - floor(other/self)
 
     def conjugate(self):
         return self
@@ -186,10 +187,10 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
         return c.real
 
     def exp(self):
-        return self._realify(LeviCivitaComplex(self).exp(), test=True)
+        return self._realify(self._COMPLEX(self).exp(), test=True)
     
     def log(self, base=math.e):
-        return self._realify(LeviCivitaComplex(self).log(base), test=True)
+        return self._realify(self._COMPLEX(self).log(base), test=True)
 
     def log10(self):
         return self.log(10)
@@ -217,7 +218,7 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
 for name in 'cos sin tan acos asin atan cosh sinh tanh acosh asinh atanh'.split():
     exec(f'''
 def {name}(self):
-    return self._realify(LeviCivitaComplex(self).{name}())
+    return self._realify(self._COMPLEX(self).{name}())
 LeviCivitaFloat.{name} = {name}
 del {name}
     ''', globals())
@@ -249,14 +250,25 @@ def {name}(x, y, **kw):
     except AttributeError:
         pass
     if isinstance(y, LeviCivitaFloat):
-        return type(y)(x).{name}(y, **kw))
+        return type(y)(x).{name}(y, **kw)
     if isinstance(y, LeviCivitaBase):
-        raise TypeError(f"can't convert {type(y).__name__} to LeviCivitaFloat")
+        raise TypeError(f"can't convert {{type(y).__name__}} to LeviCivitaFloat")
     return math.{name}(x, y, **kw)
 """, globals())
 
 del name
 
+def log(x, y=math.e):
+    try:
+        return x.log(y)
+    except AttributeError:
+        pass
+    if isinstance(y, LeviCivitaFloat):
+        return type(y)(x).log(y)
+    if isinstance(y, LeviCivitaBase):
+        raise TypeError(f"can't convert {{type(y).__name__}} to LeviCivitaFloat")
+    return math.log(x, y)
+    
 def isclose(x, y, *, rel_tol=1e-09, abs_tol=0.0):
     try:
         return x.isclose(y, rel_tol=rel_tol, abs_tol=abs_tol)
@@ -284,3 +296,7 @@ tau = math.tau
 inf = math.inf
 
 L = LeviCivitaFloat # TODO: move to test/__main__ only?
+
+from .cpx import LeviCivitaComplex as _COMPLEX
+LeviCivitaFloat._COMPLEX = _COMPLEX
+del _COMPLEX
