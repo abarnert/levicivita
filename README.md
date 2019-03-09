@@ -37,6 +37,13 @@ For more detail, see **Math** below.
 
 # Usage
 
+Interactively, either:
+
+ * `from levicivita.real import *` or
+ * `from levicivita.cpx import *`
+
+For non-interactive use, you probably don't want `import *` of course.
+
 The main user interface is:
 
  * constant `ε`
@@ -44,8 +51,9 @@ The main user interface is:
     with the `inf` calculator)
   * `1/ε`, `2*ε`, `ε**2`, `1+ε`, `1+2j+(1-2j)*ε`, etc. give you any
     other L-C numbers you need
- * all `cmath`-style functions, extended to deal with L-C numbers 
-  * `phase(x)`, `polar(x)`, `rect(r, phi)`
+ * `math`/`cmath`-style functions, extended to deal with L-C numbers 
+  * `phase(x)`, `polar(x)`, `rect(r, phi)` (complex only)
+  * `ceil(x)`, `floor(x)`, `trunc(x)`, `round(x, digits)` (real only)
   * `exp(x)`, `log(x[, base])`, `log10(x)`, `sqrt(x)`
   * `acos(x)`, `asin(x)`, `atan(x)`, `cos(x)`, `sin(x)`, `tan(x)`
   * `acosh(x)`, `asinh(x)`, `atanh(x)`, `cosh(x)`, `sinh(x)`, `tanh(x)`
@@ -55,28 +63,33 @@ The main user interface is:
    raising an exception on infinite `x`
  * `change_terms(n)` to change the approximation depth
 
-Most of these should be obvious, except the last two.
+Most of these should be obvious, except `isclose` and `change_terms`.
 
 Two infinite numbers are close if they have the same leading exponent
 with coefficients that are close (ignoring `abs_tol`). Two finite
-numbers are close if their standard parts are close. (Note that this
-means any two infinitesimals are always close.)
+numbers are close if their standard parts are close (by both `rel_tol`
+and `abs_tol`). Note that this means that two infinitesimals are
+always close.
 
 L-C numbers are approximated to the first N terms (and of course to
-IEEE double values for coefficients), by default 5. This can be
-changed globally, by calling `change_terms` with a different `N`.
+IEEE double values for coefficients), by default 5 (although twice as
+many are used for intermediate calculations). This can be changed
+globally, by calling `change_terms` with a different `N`.
 
 You almost always want to print out the `str` rather than `repr` of
 these numbers.
 
-You should rarely need to construct `LeviCivitaComplex` numbers
-directly, but if you need to:
+You should rarely need to construct Levi-Civita numbers directly, but
+if you need to:
 
  * `LeviCivitaComplex()` == `0`
  * `LeviCivitaComplex(c)` == `c` for any `complex` or compatible
    number, or any existing `LeviCivitaComplex` number.
  * `LeviCivitaComplex(front, leading)` == `front * ε**leading`.
  * `LeviCivitaComplex(front, leading, series)`: see **Implementation**.
+
+... and likewise for `LeviCivitaFloat` (except of course that the
+`front` and the `series` coefficients must be real).
 
 # Math
 
@@ -114,9 +127,14 @@ by Shamseddine and Berz for more information.
 
 # Design Limitations
 
-Currently, the package only handles complex L-C numbers, not
-real. Which means that it doesn't handle ordering at all (even though
-the simple ordering properties are one of the reasons L-C is so nice).
+The implementation of transcendental methods on L-C float is based
+heavily on complex. For `exp`/`log`/`pow` we do the complex math,
+check that the imaginary part is small enough to be a plausible error
+(`1e-15` in the `front`), and throw it away, which is pretty
+hacky. For `sin` and friends, we don't even do the check (because
+in practice, `sin(cos(sin(ε)))` would already have much more than
+`1e-15` error), which is even hackier. There is probably a better
+solution.
 
 Using complex coefficients of each term, instead of having separate
 real and imaginary series, means a few things that IEEE complex
@@ -131,7 +149,7 @@ The internal structure (which is based on the documentation of the
 `inf` calculator; see below) may not be ideal. For example, do we
 really need unbounded exact fractions for the exponents? Probably not,
 and it probably slows things down. (I suspect `inf` doesn't actually
-do that.)
+do that, but I could be wrong.)
 
 You almost always want to print out the `str` rather than the `repr`,
 which is annoying for interactive use. Maybe there should be a way to
@@ -147,6 +165,14 @@ this is because it's not clear how it _should_. Would we want to keep
 all of the coefficients as decimals with the specified precision? What
 about the epsilon exponents?
 
+The design of `isclose` tries maybe too hard to match `cmath`. As
+written, it means any two infinitesimals are always close to each
+other. Maybe `rel_tol` should always be applied to `front`, instead of
+only when nonpositive. And, even beyond that, it might be useful (at
+least for testing this module!) to have a way to specify closeness in
+powers (`eps_tol`?) of `ε`, so, e.g., `1+ε` and `1+7*ε` would fail if
+you asked for 2 or more powers.
+
 # Implementation
 
 The implementation was borrowed from the JavaScript browser calculator
@@ -157,11 +183,11 @@ it's a lot more Pythonic than a straight port would have been; on the
 minus side, that means it doesn't handle all of the features that a
 port would have.
 
-Internally, L-C numbers are implemented by the class
-`LeviCivitaComplex`, which normalizes numbers as:
+Internally, L-C numbers are implemented by the classes
+`LeviCivitaComplex` and `LeviCivitaFloat`, which normalize numbers as:
 
- * `front`: standard part (`complex`)
- * `leading`: leading epsilon exponent (`int` or `Fraction`)
+ * `front`: standard part (`complex` or `float`, as appropriate)
+ * `leading`: leading epsilon exponent (can be `int` or `Fraction`)
  * `series`: sequence of up to `TERMS` pairs of `(a, q)` values
    (`real` or `complex`, `int` or `Fraction`) for additional epsilon
    terms
@@ -171,12 +197,12 @@ This idea was borrowed straight from `inf`. It makes a lot of things
 more complicated to construct numbers. Numbers are always normalized
 on construction. (I believe that's not true of `inf`; you can
 construct a number any way you want, and calling a `tidy` method is
-optional.) 
+optional.)
 
-As with other numeric types, `LeviCivitaComplex` values are immutable
-(which also isn't true for `inf`), and for two equal numbers, neither
-identity nor nonidentity is guaranteed. (In other words, `__new__` may
-return an existing number if it's convenient.)
+As with other numeric types, the values are immutable (which also
+isn't true for `inf`), and for two equal numbers, neither identity nor
+nonidentity is guaranteed. (In other words, `__new__` may return an
+existing number if it's convenient.)
 
 Class attributes `TERMS` and `DISPLAY_TERMS` control how many terms
 are preserved at normalization and in `str`, respectively. The
@@ -193,14 +219,18 @@ too many terms, or if there are IEEE rounding issues--and notice that
 normalization can cause rounding). It's also less efficient to build
 them this way.
 
-The class fully implements `numbers.Complex`, with all of the
-operators doing exactly what you'd expect (including the reverse
-forms). It plays nicely with any type in the numeric tower--including
-the builtin types and `fractions.Fraction`, but not `decimal.Decimal`.
+The classes fully implement `numbers.Complex` and `numbers.Real`, with
+all of the operators doing exactly what you'd expect (including the
+reverse forms). They play nicely with any type in the numeric
+tower--including the builtin types and `fractions.Fraction`, but not
+`decimal.Decimal`.
 
-It also has methods for all of the module functions in `cmath`; the
-module functions call those methods when given `LeviCivitaComplex`
-objects and defer to `cmath` otherwise.
+There are also methods for all of the module functions in `cmath` or
+most of the functions in `math`, respectively. The module functions
+call those methods when given L-C objects, and defer to `cmath`/`math`
+otherwise. (In particular, floats support everything in `math` that's
+also in `cmath`, plus `ceil`/`floor`/`round`/`trunc`, but nothing
+else, like `degrees` or `erfc`.)
 
 `1/x`, `exp(x)`, and `log(x)` are implemented through Taylor series,
 which are statically built (to `TERMS` terms) when you call
@@ -209,22 +239,27 @@ built on the fly (although it is optimized for integral `y`). All of
 the other `cmath` functions are built in terms of these. For example,
 `acos(x)` is `-j * log(x + sqrt(1-x**2)`. Note that these
 implementations are not always as precise (not to mention efficient)
-as the ones in `cmath` and `math`.
+as the ones in `cmath`.
+
+For floats, all of these methods are implemented in terms of the
+complex implementation, which is even less precise and efficient
+compared to `math`.
 
 # History
 
+ * 0.0.2 2019-03-08: add floats, pull tests out
  * 0.0.1 2019-03-08: initial implementation
 
 # TODO
 
- * Handle `float` as well as `complex` (including adding comparisons).
  * `conjugate`, `real`, `imag`, `phase`, `rect`, `polar` are missing.
- * Extend `isclose` with `eps_tol` or something to handle terms up to
-   `eps**n`? (It would certainly be useful for unit testing, if
-   nothing else. For example, `log(exp(2+3*ε)) == exp(log(2+3*ε))` is
-   probably false; `isclose` only tests that the `2` is correct; we
-   really want to test that the `2` is close to `2`, the `3` is close
-   to `3`, and the next few terms are all close to `0`.
+ * `__floordiv__` and `__mod__` are missing.
+ * Consider adding other functions from `math`.
+ * Is there a better way to implement real transcendental functions?
+ * If not, is there at least a better way to refactor things?
+ * Consider changing `isclose`: maybe `rel_tol` should apply to
+   `front` no matter what, and maybe we want an `eps_tol` or something
+   to specify how many powers of epsilon we want to require to be close.
  * Are `exp(1/ε)`, `log(1/ε)`, `log(ε)`, etc. really out of range? If
    not, implement them.
  * Should `isinf` and friends treat infinite numbers like `inf`? And
@@ -232,23 +267,22 @@ as the ones in `cmath` and `math`.
  * Replace `change_terms` with something more like `decimal` contexts.
  * Maybe `__float__` and `__int__` should raise custom `TypeError`
    like `complex` does?
- * Separate out unit tests.
  * Add more tests and more error handling.
  * Can I look deeper into implementation of `inf` despite GPL? There
    are a lot of places where I guessed at the implementation from the
    function names, and may have gotten things wrong...
  * Look at construction from `Fraction`. (Disallow? Convert to `float`?)
  * Consider working with `Decimal`.
- * Construct from string.
+ * Construct from string?
  * Look over handling of `inf`, `nan`, etc., especially
    overflow/underflow.
  * Improve normalization: Don't sort `series` multiple times (maybe
    don't sort at all; try collecting via `dict`/`Counter`); don't
    convert back to `tuple` multiple times; etc.
- * Consider implementing `pow` in terms of `exp` and `log`.
  * Handle cases where `pow` (and maybe `exp`, etc.?) gives complex for
    complex-typed but real-valued arguments, ideally as well as `cmath`
-   does.
+   does. Would this help the `_realify` for float (if there's no
+   better answer)?
  * Compare errors for different implementations of transcendental
    functions (and maybe even use explicit Taylor series for each instead
    of using `exp`).
