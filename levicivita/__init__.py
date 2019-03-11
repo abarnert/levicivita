@@ -1,6 +1,7 @@
 import abc
 import cmath
 import fractions
+import itertools
 import math
 import numbers
 import operator
@@ -11,7 +12,7 @@ import types
 import functools
 import inspect
 
-__version__ = '0.0.5'
+__version__ = '0.0.6'
 
 def _debugmethod(func):
     return func
@@ -35,17 +36,15 @@ class LeviCivitaBase(abc.ABC):
 
         # Zero
         if front is None:
-            self.front, self.leading = 0.0, 0
-            self.series = ((0, 1),)
+            self.front, self.leading = cls._TYPE(0), 0
+            self.series = ((0, 1.0),)
             return self
         
         # Copy
         if leading is None:
             # TODO: construct from string? Decimal?
-            # TODO: constructing from Fraction gives rational front,
-            #       which is probably a bad idea
             try:
-                self.front, self.leading = front.front, front.leading
+                self.front, self.leading = cls._TYPE(front.front), front.leading
                 self.series = front.series
                 if (not isinstance(front, cls._ABSTYPE) or
                     not all(isinstance(a, cls._ABSTYPE)
@@ -54,8 +53,8 @@ class LeviCivitaBase(abc.ABC):
                 return self
             except AttributeError:
                 if isinstance(front, cls._ABSTYPE):
-                    self.front, self.leading = front, 0
-                    self.series = ((0, 1),)
+                    self.front, self.leading = cls._TYPE(front), 0
+                    self.series = ((0, 1.0),)
                     return self
                 raise TypeError(f"can't convert {type(front).__name__} to {cls.__name__}")
 
@@ -68,7 +67,7 @@ class LeviCivitaBase(abc.ABC):
             except ValueError:
                 raise TypeError(f'front must be rational, not {leading}')
         if not series:
-            series = ((0, 1),)
+            series = ((0, 1.0),)
         # TODO: don't need to sort here; this is just type-checking...
         try:
             series = tuple(sorted((tuple(term) for term in series),
@@ -81,7 +80,6 @@ class LeviCivitaBase(abc.ABC):
                 raise TypeError(f'first element of each term must be rational, not {series[0]}')
             if not isinstance(term[1], numbers.Complex):
                 raise TypeError(f'second element of each term must be real or complex, not {series[1]}')
-        front, leading, series = cls._normalize(front, leading, series)
         front, leading, series = cls._normalize(front, leading, series)
         self.front, self.leading, self.series = front, leading, series
         return self
@@ -118,7 +116,7 @@ class LeviCivitaBase(abc.ABC):
             leading += p
             series = tuple((q-p, aq) for (q, aq) in series)
             #print(f'  add-normalized to {front}, {leading}, {series}')
-        return front, leading, series
+        return cls._TYPE(front), leading, series
 
     def __repr__(self):
         return f'{type(self).__name__}({self.front}, {self.leading}, {self.series})'
@@ -247,23 +245,26 @@ class LeviCivitaBase(abc.ABC):
     def expand(self, coefficients):
         s = type(self)()
         pow = type(self)(1.0) # = self**0
-        for term in coefficients:
-            s += term * pow
+        for coefficient in itertools.islice(coefficients, self._TERMS):
+            s += pow * coefficient
             pow *= self
         return s
 
-    # TODO: This is only useful for debugging, and not even that
-    #       anymore now that repr works. It _might_ be useful to
-    #       iterate the actual terms, rather than the internal
-    #       series, but if so, that shouldn't be __iter__.
-    #def __iter__(self):
-    #    for term in self.series[:self._TERMS]:
-    #        yield (term[0] + self.leading, term[1] * self.front)
+    # expand a Taylor series with inverse coefficients
+    # (except that 0 is 0, not 1/0)
+    def expand_inv(self, inv_coefficients):
+        s = type(self)()
+        pow = type(self)(1.0) # = self**0
+        for inv_coefficient in itertools.islice(inv_coefficients, self._TERMS):
+            if inv_coefficient:
+                s += pow / inv_coefficient
+            pow *= self
+        return s
 
     def inv(self):
         # reduce it to inverting 1/(1-e)
         z = type(self)(1/self.front, -self.leading)
-        return z * (-self.eps_part()).expand(self._TAYLOR_INV)
+        return z * (-self.eps_part()).expand(itertools.repeat(1))
 
     def __truediv__(self, other):
         if not isinstance(other, type(self)):
@@ -313,8 +314,6 @@ class LeviCivitaBase(abc.ABC):
         front = self.front ** p
         leading = self.leading / p.denominator
         z = type(self)(front, leading)
-        # TODO: Can we just do the equivalent of exp(log(self)*p) even
-        # here instead of a custom Taylor series?
         def f(i, u):
             return u*(p-1+i)/1 if i else 1
         taylor = self._generate_taylor(f)
@@ -377,6 +376,111 @@ class LeviCivitaBase(abc.ABC):
         # TODO: abs?
         return cmath.isclose(self.st(), other, rel_tol=rel_tol, abs_tol=abs_tol)
 
+    def exp(self):
+        # This diverges for infinite values, to infinities too large
+        # to approximate in a finite Levi-Civita series. Which makes
+        # sense once you think about it.
+        if self.leading < 0:
+            raise OverflowError('cannot exponentiate infinite')
+        # TODO: this seems to be the one place where 5/10 terms is
+        # nowhere near enough...
+        return self.expand_inv(math.factorial(i) for i in itertools.count())
+
+    def log(self, base=math.e):
+        # TODO: is this correct?
+        if not self.front:
+            raise ValueError('cannot take log of 0')
+        if self.leading < 0:
+            raise ValueError('cannot take log of infinite')
+        elif self.leading > 0:
+            raise ValueError('cannot take log of infinitesimal')
+        if isinstance(base, LeviCivitaBase):
+            return self.log() / base.log()
+        if base != math.e:
+            return self.log() / cmath.log(base)
+        series = (i * -1**(i-1) for i in itertools.count())
+        return self._MATH.log(self.front) + self.eps_part().expand(series)
+
+    def log2(self):
+        return self.log(2)
+    
+    def log10(self):
+        return self.log(10)
+
+    # Some of the inverse trig/hyp identities use coefficients based
+    # on double factorials (1*3*5 / 2*4*6, etc.). Writing a simple
+    # `factorial2` function and then writing each of the identities in
+    # closed form is probably the cleanest way to do this, but since
+    # they all happen to use exactly the same sequence (modulo signs),
+    # I'm just generating that sequence here.
+    @staticmethod
+    def _doublefactorialseries():
+        coeff = fractions.Fraction(1)
+        for i in itertools.count():
+            if not i%2:
+                yield 0
+            else:
+                yield coeff / i
+                coeff *= fractions.Fraction(i, i+1)
+    
+    def cos(self):
+        # 1, 0, -2, 0, 24, 0, -720, 0, ...
+        series = (math.factorial(i) * (1,0,-1,0)[i%4]
+                  for i in itertools.count())
+        return self.expand_inv(series)
+
+    def sin(self):
+        # 0, 1, 0, -6, 0, 120, 0, -5040, ...
+        series = (math.factorial(i) * (0,1,0,-1)[i%4]
+                  for i in itertools.count())
+        return self.expand_inv(series)
+
+    def tan(self):
+        # TODO: expand directly?
+        return self.sin() / self.cos()
+
+    def acos(self):
+        return self._MATH.pi/2 - self.asin()
+
+    def asin(self):
+        # 0, 1, 0, 1/6, 0, 3/40, 0, 5/112, 0, ...
+        series = (n * (0,1,0,1)[i%4]
+                  for i, n in enumerate(self._doublefactorialseries()))
+        return self.expand(series)
+
+    def atan(self):
+        # 0, 1, 0, -3, 0, 5, 0, -7, ...
+        series = (i * (0,1,0,-1)[i%4] for i in itertools.count())
+        return self.expand_inv(series)
+
+    def cosh(self):
+        # 1, 0, 2, 0, 24, 0, 720, 0, ...
+        series = (math.factorial(i) * (1,0,1,0)[i%4]
+                  for i in itertools.count())
+        return self.expand_inv(series)
+
+    def sinh(self):
+        # 0, 1, 0, 6, 0, 120, 0, 5040, ...
+        series = (math.factorial(i) * (0,1,0,1)[i%4]
+                  for i in itertools.count())
+        return self.expand_inv(series)
+
+    def tanh(self):
+        # TODO: expand directly?
+        return self.sinh() / self.cosh()
+
+    def acosh(self):
+        return (self + (self**2 - 1).sqrt()).log()
+
+    def asinh(self):
+        # 0, 1, 0, -1/6, 0, 3/40, 0, -5/112, 0, ...
+        #series = (n * (0,1,0,-1)[i%4] for n in self._doublefactorialseries())
+        #return self.expand(series)
+        return (self + (self**2 + 1).sqrt()).log()
+
+    def atanh(self):
+        return ((1 + self) / (1 - self)).log() / 2
+    
     @classmethod
     def _generate_taylor(cls, f, *, terms=None):
         if terms is None:
@@ -394,7 +498,6 @@ class LeviCivitaBase(abc.ABC):
     def change_terms(cls, terms=5):
         cls._DISPLAY_TERMS = terms
         cls._TERMS = 2*terms
-        cls._TAYLOR_INV = cls._generate_taylor(lambda i, l: 1)
         cls._TAYLOR_EXP = cls._generate_taylor(lambda i, l: l/i if i else 1)
         cls._TAYLOR_LOG = cls._generate_taylor(lambda i, l: -(l/abs(l))/i if i>1 else i)
 

@@ -186,11 +186,10 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
             raise ValueError('math domain error')
         return c.real
 
-    def exp(self):
-        return self._realify(self._COMPLEX(self).exp(), test=True)
-    
     def log(self, base=math.e):
-        return self._realify(self._COMPLEX(self).log(base), test=True)
+        if self <= 0:
+            raise ValueError('math domain error')
+        return super().log(base)
 
     def log10(self):
         return self.log(10)
@@ -215,7 +214,7 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
                 # math.atan2(0, 0) is pi/2, not NaN
                 return type(self)()
 
-for name in 'cos sin tan acos asin atan cosh sinh tanh acosh asinh atanh'.split():
+for name in 'acos asin atan cosh sinh tanh acosh asinh atanh'.split():
     exec(f'''
 def {name}(self):
     return self._realify(self._COMPLEX(self).{name}())

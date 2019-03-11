@@ -269,50 +269,45 @@ There are also methods for all of the module functions in `cmath` or
 most of the functions in `math`, respectively. The module functions
 call those methods when given L-C objects, and defer to `cmath`/`math`
 otherwise. (In particular, floats support everything in `math` that's
-also in `cmath`, plus `ceil`/`floor`/`round`/`trunc`, but nothing
-else, like `degrees` or `erfc`.)
+also in `cmath`, plus `ceil`/`floor`/`round`/`trunc`, plus a few other
+things like `degrees`, but not special functions like `erfc` and
+`gamma`).
 
-`1/x`, `exp(x)`, and `log(x)` are implemented through Taylor series,
-which are statically built (to `TERMS` terms) when you call
-`change_terms`. `pow(x, y)` is implemented through a Taylor series
-built on the fly (although it is optimized for integral `y`). All of
-the other `cmath` functions are built in terms of these. For example,
-`acos(x)` is `-j * log(x + sqrt(1-x**2)`. Note that these
-implementations are not always as precise (not to mention efficient)
-as the ones in `cmath`.
+`1/x`, `exp(x)`, `log(x)`, `pow`, and all of the trigonometric and
+hyperbolic functions are implemented through Taylor series in `TERMS`
+terms (except for a few which are implemented in terms of other ones),
+although `pow` is optimized for the integral `y` case. This turns out
+to be much more accurate than implementing trig via `exp` identities
+(especially for the real case). This may be because `exp` (and `pow`),
+despite being the simplest series, is the least accurate by far? More
+tests are probably needed. (Compare, e.g., `sin(pi/8) - sin(pi/8-d)`
+with 5 terms. With the direct implementaton, the error is -8.6e-13, as
+opposed to 7.8e-8. Note that the `inf` calculator gives the latter
+error, so it's presumably using the `exp` identities.)
 
-For floats, all of these methods are implemented in terms of the
-complex implementation, which is even less precise and efficient
-compared to `math`.
+# Testing
+
+In addition to some custom tests, the test suite runs the stdlib math
+and cmath test cases. Ideally, it should also run all of those test
+cases with an added infinitesimal term, but first I need to work out
+which ones should end up within which error limits.
 
 # History
 
+ * 0.0.6 2019-03-10: better transcendentals, better tests, some refactoring
  * 0.0.5 2019-03-09: floordiv, mod
  * 0.0.4 2019-03-09: conjugate/real/imag, phase/polar/rect, more math
  * 0.0.3 2019-03-08: add diff
  * 0.0.2 2019-03-08: add floats, pull tests out
  * 0.0.1 2019-03-08: initial implementation
 
-# BUGS
-
- * There's clearly something wrong with the transcendental functions.
-   For example, `sin(pi/8) - sin(pi/8-d)` should be infinitestimal,
-   but it has an error (in the standard part) of `7.8e-8`, which is
-   way too big to just discard. This breaks automatic differentiation,
-   as it makes the derivative infinite instead of `sqrt(2)`. The good
-   news is that the `inf` calculator gives almost the exact same
-   results, which implies this may be good enough for playing around
-   (as long as you don't try anything like automatic differentiation
-   of the transcendental functions). The bad news is that the `inf`
-   calculator gives almost the exact same result, which implies that
-   there's no better implementation to be found there....
-
 # TODO
 
- * `__floordiv__` and `__mod__` are missing.
  * Consider adding other functions from `math`.
- * Is there a better way to implement real transcendental functions?
- * If not, is there at least a better way to refactor things?
+ * More refactoring.
+ * It should be possible to write tests without all those ugly
+   `self.exp` and `self. ε` bits. (And to share more tests between
+   float and complex.)
  * Consider changing `isclose`: maybe `rel_tol` should apply to
    `front` no matter what, and maybe we want an `eps_tol` or something
    to specify how many powers of epsilon we want to require to be close.
@@ -333,12 +328,8 @@ compared to `math`.
  * Look over handling of `inf`, `nan`, etc., especially
    overflow/underflow.
  * Improve normalization: Don't sort `series` multiple times (maybe
-   don't sort at all; try collecting via `dict`/`Counter`); don't
-   convert back to `tuple` multiple times; etc.
+   collect via `dict`/`Counter`?); don't convert back to `tuple`
+   multiple times; etc.
  * Handle cases where `pow` (and maybe `exp`, etc.?) gives complex for
    complex-typed but real-valued arguments, ideally as well as `cmath`
-   does. Would this help the `_realify` for float (if there's no
-   better answer)?
- * Compare errors for different implementations of transcendental
-   functions (and maybe even use explicit Taylor series for each instead
-   of using `exp`).
+   does.

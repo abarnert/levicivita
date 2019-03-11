@@ -13,8 +13,6 @@ _UNARY_NAMES = '''exp log log10 sqrt
                   phase polar
                   isnan isinf isfinite'''.split()
 
-# TODO: phase, polar, rect
-
 __all__ = ('LeviCivitaComplex', 'epsilon', 'eps', 'd', 'ε', 'L',
            'log', 'isclose', 'st', 'change_terms',
            'e', 'nan', 'nanj', 'pi', 'tau', 'inf', 'infj') + tuple(_UNARY_NAMES)
@@ -25,6 +23,9 @@ class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
     _ABSTYPE = numbers.Complex
     _REAL = None
 
+    def __abs__(self):
+        return super().__abs__().real
+    
     def conjugate(self):
         return type(self)(self.front.conjugate(), self.leading,
                           ((q, a.conjugate()) for (q, a) in self.series))
@@ -51,77 +52,7 @@ class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
     def polar(self):
         return self.abs(), self.phase()        
 
-    def exp(self):
-        # TODO: is this correct?
-        if self.leading < 0:
-            raise OverflowError('cannot exponentiate infinite')
-        magf = abs(self.front)
-        if magf == 1:
-            return self.expand(self._TAYLOR_EXP)
-        else:
-            unitf = cmath.rect(1, cmath.phase(self.front))
-            z = type(self)(unitf, self.leading, self.series)
-            return z.expand(z._TAYLOR_EXP) ** magf
-        
-    def log(self, base=math.e):
-        # TODO: is this correct?
-        if not self.front:
-            raise ValueError('cannot take log of 0')
-        if self.leading < 0:
-            raise ValueError('cannot take log of infinite')
-        elif self.leading > 0:
-            raise ValueError('cannot take log of infinitesimal')
-        if isinstance(base, LeviCivitaBase):
-            return self.log() / base.log()
-        if base != math.e:
-            return self.log() / cmath.log(base)
-        return cmath.log(self.front) + self.eps_part().expand(self._TAYLOR_LOG)
-
-    def log10(self):
-        return self.log(10)
-    
-    def cos(self):
-        u = (self*1j).exp()
-        return (u + u.inv()) / 2
-
-    def sin(self):
-        u = (self*1j).exp()
-        return (u - u.inv()) / 2j
-
-    def tan(self):
-        return self.sin() / self.cos()
-
-    def acos(self):
-        return -j * (self + (self**2 - 1).sqrt()).log()
-    
-    def asin(self):
-        return -j * (self*1j + (1 - self**2).sqrt()).log()
-
-    def atan(self):
-        u = self*1j
-        return -.5j * ((1 - u)/(1 + u)).log()
-    
-    def cosh(self):
-        u = self.exp()
-        return (u + u.inv()) / 2
-
-    def sinh(self):
-        u = self.exp()
-        return (u - u.inv()) / 2j
-
-    def tanh(self):
-        return self.sinh() / self.cosh()
-
-    def acosh(self):
-        return (self + (self**2 - 1).sqrt()).log()
-
-    def asinh(self):
-        return (self + (self**2 + 1).sqrt()).log()
-
-    def atanh(self):
-        return ((1 + self) / (1 - self)).log() / 2
-
-for name in 'exp log10 sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh sqrt isnan isinf isfinite'.split():
+for name in _UNARY_NAMES:
     exec(f"""
 def {name}(x, **kw):
     try:
@@ -132,13 +63,17 @@ def {name}(x, **kw):
 
 del name
 
-def log(x, base=math.e):
+# cmath.log(0) raises, but cmath.log(e) returns -inf+nanj
+def log(x, base=None):
+    b = cmath.e if base is None else base
     try:
-        return x.log(base)
+        return x.log(b)
     except AttributeError:
         pass
     if isinstance(base, LeviCivitaBase):
         return type(base)(x).log(base)
+    if base is None:
+        return cmath.log(x)
     return cmath.log(x, base)
 
 def isclose(x, y, *, rel_tol=1e-09, abs_tol=0.0):
