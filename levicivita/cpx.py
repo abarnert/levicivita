@@ -3,9 +3,6 @@
 import cmath
 import numbers
 
-# testing only
-import unittest
-
 from . import *
 
 _UNARY_NAMES = '''exp log log10 sqrt 
@@ -58,7 +55,8 @@ def {name}(x, **kw):
     try:
         return x.{name}(**kw)
     except AttributeError:
-        return cmath.{name}(x, **kw)
+        pass
+    return cmath.{name}(x, **kw)
 """, globals())
 
 del name
@@ -91,7 +89,8 @@ def st(x):
     try:
         return x.st()
     except AttributeError:
-        return complex(x)
+        pass
+    return complex(x)
 
 def rect(r, phi):
     return LeviCivitaComplex.rect(r, phi)

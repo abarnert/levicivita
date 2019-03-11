@@ -37,12 +37,21 @@ For more detail, see **Math** below.
 
 # Usage
 
-Interactively, either:
+The simplest way to use this is to run `calc.py`, which gives you an
+interactive Python intepreter with everything imported and set up for
+easy use as a calculator.
+
+This includes hooking the output to show you numbers like `1+ε`
+instead of `LeviCivitaFloat(1.0, 0, ((0, 1.0), (1, 1.0)))`.
+
+However, if you want to use it interactively in a normal Python
+session, you can do that too. Either:
 
  * `from levicivita.real import *` or
  * `from levicivita.cpx import *`
 
-For non-interactive use, you probably don't want `import *` of course.
+For non-interactive use, you probably don't want `import *` of course,
+but otherwise, everything is the same.
 
 The main user interface is:
 
@@ -54,11 +63,16 @@ The main user interface is:
  * `math`/`cmath`-style functions, extended to deal with L-C numbers 
   * `phase(x)`, `polar(x)`, `rect(r, phi)` (complex only)
   * `ceil(x)`, `floor(x)`, `trunc(x)`, `round(x, digits)` (real only)
-  * `exp(x)`, `log(x[, base])`, `log10(x)`, `sqrt(x)`
+  * `fabs(x)`, `fmod(x)` (real only)
+  * `degrees(x)`, `radians(x)` (real only)
+  * `exp(x)`, `log(x[, base])`, `log10(x)`, `log2(x)`, `sqrt(x)`
   * `acos(x)`, `asin(x)`, `atan(x)`, `cos(x)`, `sin(x)`, `tan(x)`
+  * `atan2(x, y)`, `hypot(x, y)` (real only)
   * `acosh(x)`, `asinh(x)`, `atanh(x)`, `cosh(x)`, `sinh(x)`, `tanh(x)`
   * `isfinite(x)`, `isinf(x)`, `isnan(x)`
   * `isclose(a, b, *, rel_tol=1-09, abs_tol=0.0)`
+  * `pi`, `tau`, `e`, `inf`, `nan`
+  * `infj`, `nanj` (complex only)
  * `st(x)` returns the standard (non-infinitestimal) part of `x`,
    raising an exception on infinite `x`
  * `change_terms(n)` to change the approximation depth
@@ -75,6 +89,15 @@ L-C numbers are approximated to the first N terms (and of course to
 IEEE double values for coefficients), by default 5 (although twice as
 many are used for intermediate calculations). This can be changed
 globally, by calling `change_terms` with a different `N`.
+
+The choice of import determines the type of `ε`, but that usually
+isn't an issue. You can always get a complex number from a float by
+`*1j` or `+0j` (just as with normal `float`), and vice-versa (assuming
+the number actually is real) with `.real` (just as with normal
+`complex`). However, the choice also determines whether you get
+`math`-style or `cmath`-style functions, which _does_ make a
+difference. For example, `log(-1+ε)` is a `ValueError` for reals, but
+`log(-1+0j+ε)` is fine.
 
 You almost always want to print out the `str` rather than `repr` of
 these numbers.
@@ -294,6 +317,7 @@ which ones should end up within which error limits.
 
 # History
 
+ * 0.0.7 2019-03-10: `LeviCivitaReal(1) + 0j` is now complex; add `calc.py`
  * 0.0.6 2019-03-10: better transcendentals, better tests, some refactoring
  * 0.0.5 2019-03-09: floordiv, mod
  * 0.0.4 2019-03-09: conjugate/real/imag, phase/polar/rect, more math
@@ -303,6 +327,11 @@ which ones should end up within which error limits.
 
 # TODO
 
+ * Do we really need separate `ε` for the two types? Maybe just always
+   import the _package_, and `ε` is always Real, and use `+0j`/`*1j`
+   when you want complex numbers. The submodules can focus on
+   reproducing `math` vs. `cmath`, while reproducing `float`
+   vs. `complex` is part of the package.
  * Consider adding other functions from `math`.
  * More refactoring.
  * It should be possible to write tests without all those ugly

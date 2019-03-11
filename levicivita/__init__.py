@@ -12,7 +12,7 @@ import types
 import functools
 import inspect
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 
 def _debugmethod(func):
     return func
@@ -166,7 +166,22 @@ class LeviCivitaBase(abc.ABC):
 
     # TODO: verify NaN handling in all arithmetic (also inf?)
 
-    # TODO: return LeviCivitaReal once we have such a thing
+    # Hook to allow coerce, e.g., `LeviCivitaReal(1) + 1j` to
+    # LeviCivitaComplex (because __radd__ won't help there).
+    def _coerce_binop(meth):
+        @functools.wraps(meth)
+        def wrapper(self, other, *args, **kw):
+            if (not isinstance(other, LeviCivitaBase)
+                and isinstance(self, numbers.Real)
+                and isinstance(other, numbers.Complex)
+                and not isinstance(other, numbers.Real)):
+                try:
+                    self = self._COMPLEX(self)
+                except AttributeError:
+                    pass
+            return meth(self, other, *args, **kw)
+        return wrapper
+    
     def __abs__(self):
         # TODO: we probably need to abs the coefficients in the series?
         return type(self)(abs(self.front), self.leading, self.series)
@@ -179,7 +194,8 @@ class LeviCivitaBase(abc.ABC):
     def __pos__(self):
         return self
 
-    @_debugmethod    
+    @_debugmethod
+    @_coerce_binop
     def __add__(self, other):
         if not isinstance(other, type(self)):
             try:
@@ -195,14 +211,17 @@ class LeviCivitaBase(abc.ABC):
 
     __radd__ = __add__
 
-    @_debugmethod    
+    @_debugmethod
+    @_coerce_binop
     def __sub__(self, other):
         return self + -other
 
-    @_debugmethod    
+    @_debugmethod
+    @_coerce_binop
     def __rsub__(self, other):
         return -self + other
 
+    @_coerce_binop
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             try:
@@ -216,9 +235,11 @@ class LeviCivitaBase(abc.ABC):
         return ((self.front, self.leading, self.series) ==
                 (other.front, other.leading, other.series))
 
+    @_coerce_binop
     def __ne__(self, other):
         return not self == other
 
+    @_coerce_binop
     def __mul__(self, other):
         if not self:
             return self
@@ -266,6 +287,7 @@ class LeviCivitaBase(abc.ABC):
         z = type(self)(1/self.front, -self.leading)
         return z * (-self.eps_part()).expand(itertools.repeat(1))
 
+    @_coerce_binop
     def __truediv__(self, other):
         if not isinstance(other, type(self)):
             try:
@@ -274,6 +296,7 @@ class LeviCivitaBase(abc.ABC):
                 return NotImplemented
         return self * other.inv()
 
+    @_coerce_binop
     def __rtruediv__(self, other):
         return self.inv() * other
 
@@ -297,6 +320,7 @@ class LeviCivitaBase(abc.ABC):
             r = r * self
         return r
 
+    @_coerce_binop
     def __pow__(self, p):
         if isinstance(p, numbers.Integral):
             return self._intpow(p)

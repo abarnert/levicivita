@@ -4,9 +4,6 @@ import math
 import functools
 import numbers
 
-# testing only
-import unittest
-
 from . import *
 
 # math functions not covered (as of 3.7):
@@ -214,21 +211,14 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
                 # math.atan2(0, 0) is pi/2, not NaN
                 return type(self)()
 
-for name in 'acos asin atan cosh sinh tanh acosh asinh atanh'.split():
-    exec(f'''
-def {name}(self):
-    return self._realify(self._COMPLEX(self).{name}())
-LeviCivitaFloat.{name} = {name}
-del {name}
-    ''', globals())
-    
 for name in _UNARY_NAMES:
     exec(f"""
 def {name}(x, **kw):
     try:
         return x.{name}(**kw)
     except AttributeError:
-        return math.{name}(x, **kw)
+        pass
+    return math.{name}(x, **kw)
 """, globals())
 
 # TODO: optional argument on round!
@@ -238,7 +228,8 @@ def {name}(x, **kw):
     try:
         return x.__{name}__(**kw)
     except AttributeError:
-        return math.{name}(x, **kw)
+        pass
+    return math.{name}(x, **kw)
 """, globals())
 
 for name in _BINARY_NAMES:
@@ -283,7 +274,8 @@ def st(x):
     try:
         return x.st()
     except AttributeError:
-        return float(x)
+        pass
+    return float(x)
 
 epsilon = eps = d = ε = LeviCivitaFloat(1.0, 1)
 # TODO: should these all be LeviCivitaFloat(n)?
