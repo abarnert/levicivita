@@ -1,7 +1,8 @@
-"""A class for calculating with infinite and infinitesimal complex numbers"""
+"""Module replacing mathematical functions on complex values (from cmath)
+with functions on Levi-Civita complex (including infinite and infinitesimal).
+"""
 
 import cmath
-import numbers
 
 from . import *
 
@@ -13,41 +14,6 @@ _UNARY_NAMES = '''exp log log10 sqrt
 __all__ = ('LeviCivitaComplex', 'epsilon', 'eps', 'd', 'ε', 'L',
            'log', 'isclose', 'st', 'change_terms',
            'e', 'nan', 'nanj', 'pi', 'tau', 'inf', 'infj') + tuple(_UNARY_NAMES)
-
-class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
-    _MATH = cmath
-    _TYPE = complex
-    _ABSTYPE = numbers.Complex
-    _REAL = None
-
-    def __abs__(self):
-        return super().__abs__().real
-    
-    def conjugate(self):
-        return type(self)(self.front.conjugate(), self.leading,
-                          ((q, a.conjugate()) for (q, a) in self.series))
-    
-    @property
-    def real(self):
-        return self._REAL(self.front.real, self.leading,
-                          ((q, a.real) for (q, a) in self.series))
-
-    @property
-    def imag(self):
-        return self._REAL(self.front.imag, self.leading,
-                          ((q, a.imag) for (q, a) in self.series))
-
-    def phase(self):
-        return self.imag.atan2(self.real)
-
-    @classmethod
-    def rect(cls, r, phi):
-        x = cls(r * cos(phi))
-        y = cls(r * sin(phi))
-        return x + y*j
-
-    def polar(self):
-        return self.abs(), self.phase()        
 
 for name in _UNARY_NAMES:
     exec(f"""
@@ -106,8 +72,5 @@ tau = cmath.tau
 inf = cmath.inf
 infj = cmath.infj
 
-L = LeviCivitaComplex # TODO: move to test/__main__ only?
-
-from .real import LeviCivitaFloat as _REAL
-LeviCivitaComplex._REAL = _REAL
-del _REAL
+# TODO: should this really override parent?
+L = LeviCivitaComplex

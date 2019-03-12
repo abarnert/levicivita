@@ -1,17 +1,17 @@
 import numbers
 
-from levicivita.real import eps as feps
-from levicivita.cpx import eps as ceps
+from . import ε
+
+__all__ = ('ε', 'derivative')
 
 def derivative(func, x):
     """Return the value for the derivative of func at x.
  
-    If x is complex-valued, LeviCivitaComplex numbers will be used;
-    otherwise, LeviCivitaFloat.
+    `LeviCivitaComplex` infinitesimals will be used if `lcmath` functions
+    or a complex `x` are provided, `LeviCivitaFloat` otherwise.
     """
-    eps = feps if isinstance(x, numbers.Real) else ceps
-    plus = (func(x+eps) - func(x))/eps
-    minus = (func(x) - func(x-eps))/eps
+    plus = (func(x+ε) - func(x))/ε
+    minus = (func(x) - func(x-ε))/ε
     if not plus.isclose(minus):
         raise ValueError(f'{func.__name__} is not differentiable at {x}: {plus} != {minus}')
     return plus.st()
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     print('2*x**3 + 3*x**2 + 4*x + 5')
     test(func, dfunc, 0, 0j, 3, 3+0j, 3j, 1e-100, 1e100)
 
-    from levicivita.real import sin, cos, pi, L
+    from levicivita.lmath import sin, cos, pi, L
     def func(x):
         return sin(x) * cos(x)
     def dfunc(x):
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     print('sin(x) * cos(x) (real)')
     test(func, dfunc, 0, L(1), L(pi/8), L(5*pi/32))
 
-    from levicivita.cpx import sin, cos, pi, L
+    from levicivita.lcmath import sin, cos, pi, L
     def func(x):
         return sin(x) * cos(x)
     def dfunc(x):

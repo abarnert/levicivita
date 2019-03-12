@@ -1,6 +1,10 @@
+"""Classes for calculating with infinite and infinitesimal real numbers"""
+
 import abc
 import cmath
+import collections
 import fractions
+import functools
 import itertools
 import math
 import numbers
@@ -9,10 +13,13 @@ import sys
 import types
 
 # debug only
-import functools
 import inspect
 
-__version__ = '0.0.7'
+__version__ = '0.0.8'
+
+__all__ = ('LeviCivitaBase', 'LeviCivitaFloat', 'LeviCivitaComplex',
+           'L', 'change_terms',
+           'epsilon', 'eps', 'd', 'ε')
 
 def _debugmethod(func):
     return func
@@ -29,7 +36,7 @@ def _debugmethod(func):
 class LeviCivitaBase(abc.ABC):
     # form is front*d^leading*(sum a_q*d^q), where all q's are >0
     __slots__ = ('front', 'leading', 'series')
-    
+
     def __new__(cls, front=None, leading=None, series=None):
         """Construct a Levi-Civita number"""
         self = super(LeviCivitaBase, cls).__new__(cls)
@@ -39,7 +46,7 @@ class LeviCivitaBase(abc.ABC):
             self.front, self.leading = cls._TYPE(0), 0
             self.series = ((0, 1.0),)
             return self
-        
+
         # Copy
         if leading is None:
             # TODO: construct from string? Decimal?
@@ -160,7 +167,7 @@ class LeviCivitaBase(abc.ABC):
             return 0
         else:
             return self.front
-    
+
     def __bool__(self):
         return bool(self.front)
 
@@ -181,16 +188,16 @@ class LeviCivitaBase(abc.ABC):
                     pass
             return meth(self, other, *args, **kw)
         return wrapper
-    
+
     def __abs__(self):
         # TODO: we probably need to abs the coefficients in the series?
         return type(self)(abs(self.front), self.leading, self.series)
 
-    @_debugmethod    
+    @_debugmethod
     def __neg__(self):
         return type(self)(-self.front, self.leading, self.series)
 
-    @_debugmethod    
+    @_debugmethod
     def __pos__(self):
         return self
 
@@ -301,7 +308,7 @@ class LeviCivitaBase(abc.ABC):
         return self.inv() * other
 
     def sqrt(self):
-        return self**fractions.Fraction(1, 2)    
+        return self**fractions.Fraction(1, 2)
 
     def _intpow(self, p):
         if p == 0:
@@ -369,7 +376,7 @@ class LeviCivitaBase(abc.ABC):
         if isinstance(value, LeviCivitaBase):
             return value.isnan()
         return cls._MATH.isnan(value)
-    
+
     def isnan(self):
         return self._isnan(self.front)
 
@@ -378,7 +385,7 @@ class LeviCivitaBase(abc.ABC):
         if isinstance(value, LeviCivitaBase):
             return value.isinf()
         return cls._MATH.isinf(value)
-    
+
     def isinf(self):
         # TODO: Should this really be asking "is IEEE infinity or an
         #       infinite L-C", or only the former (in which case we'd
@@ -427,7 +434,7 @@ class LeviCivitaBase(abc.ABC):
 
     def log2(self):
         return self.log(2)
-    
+
     def log10(self):
         return self.log(10)
 
@@ -446,7 +453,7 @@ class LeviCivitaBase(abc.ABC):
             else:
                 yield coeff / i
                 coeff *= fractions.Fraction(i, i+1)
-    
+
     def cos(self):
         # 1, 0, -2, 0, 24, 0, -720, 0, ...
         series = (math.factorial(i) * (1,0,-1,0)[i%4]
@@ -504,7 +511,7 @@ class LeviCivitaBase(abc.ABC):
 
     def atanh(self):
         return ((1 + self) / (1 - self)).log() / 2
-    
+
     @classmethod
     def _generate_taylor(cls, f, *, terms=None):
         if terms is None:
@@ -525,5 +532,226 @@ class LeviCivitaBase(abc.ABC):
         cls._TAYLOR_EXP = cls._generate_taylor(lambda i, l: l/i if i else 1)
         cls._TAYLOR_LOG = cls._generate_taylor(lambda i, l: -(l/abs(l))/i if i>1 else i)
 
+@functools.total_ordering
+class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
+    _MATH = math
+    _TYPE = float
+    _ABSTYPE = numbers.Real
+    _COMPLEX = None
+
+    def __lt__(self, other):
+        if not isinstance(other, numbers.Real):
+            raise TypeError(f"'<' not supported between instances of '{type(self).__name__}' and '{type(other).__name__}'")
+        if not isinstance(other, LeviCivitaBase):
+            other = type(self)(other)
+
+        # IEEE inf overwhelms everything else
+        if self.isnan() or other.isnan():
+            return False
+        if math.isinf(self.front) or math.isinf(other.front):
+            return self.front < other.front
+
+        # handle zero and negative numbers
+        if self.front == 0 or other.front == 0:
+            return self.front < other.front
+        if self.front < 0 and other.front > 0:
+            return True
+        if self.front > 0 and other.front < 0:
+            return False
+        if self.front < 0 and other.front < 0:
+            return -other < -self
+
+        # TODO: Maybe just convert from front/leading/series to series and
+        # compare lexicographically?
+
+        if self.leading < other.leading:
+            return False
+        if other.leading < self.leading:
+            return True
+
+        if self.front < other.front:
+            return True
+        if other.front < self.front:
+            return False
+
+        return self - other < 0
+
+    # ABC checks before total_ordering can help...
+    def __le__(self, other):
+        return self == other or self < other
+
+    def sign(self):
+        if self < 0:
+            return -1
+        elif self > 0:
+            return 1
+        else:
+            # handle -0.0, but only if there's no infinitesimal
+            return math.copysign(1, self.front)
+
+    @staticmethod
+    def _sign(value):
+        # -0.0+ε is positive, so only fall back to math.copysign for
+        # actual 0
+        if value < 0:
+            return -1
+        elif value > 0:
+            return 1
+        else:
+            if isinstance(value, LeviCivitaFloat):
+                return math.copysign(1, value.front)
+            else:
+                return math.copysign(1, value)
+
+    def copysign(self, other):
+        ssign, osign = self._sign(self), self._sign(other)
+        flip = ssign*osign
+        front = self.front*flip if self.front else math.copysign(0.0, osign)
+        return type(self)(front, self.leading, self.series)
+
+    def fabs(self):
+        return abs(self)
+
+    def hypot(self, other):
+        return (self*self + other*other).sqrt()
+
+    def degrees(self):
+        return self * math.degrees(1)
+
+    def radians(self):
+        return self * math.radians(1)
+
+    def modf(self):
+        intpart = trunc(self)
+        return self-intpart, intpart
+
+    def __ceil__(self):
+        if self.isinf():
+            raise OverflowError('cannot convert infinity to integer')
+        return math.ceil(self.st())
+
+    def __floor__(self):
+        if self.isinf():
+            raise OverflowError('cannot convert infinity to integer')
+        return math.floor(self.st())
+
+    def __round__(self, ndigits=None):
+        if self.isinf():
+            raise OverflowError('cannot convert infinity to integer')
+        return round(self.st(), ndigits)
+
+    def __trunc__(self):
+        if self.isinf():
+            raise OverflowError('cannot convert infinity to integer')
+        return math.trunc(self.st())
+
+    def __float__(self):
+        return float(self.st())
+
+    def __floordiv__(self, other):
+        return floor(self / other)
+
+    def __rfloordiv__(self, other):
+        return floor(other / self)
+
+    def __mod__(self, other):
+        return self - self//other
+
+    def __rmod__(self, other):
+        return other - floor(other/self)
+
+    def conjugate(self):
+        return self
+
+    @property
+    def real(self):
+        return self
+
+    @property
+    def imag(self):
+        raise type(self)()
+
+    def log(self, base=math.e):
+        if self <= 0:
+            raise ValueError('math domain error')
+        return super().log(base)
+
+    def log10(self):
+        return self.log(10)
+
+    def log2(self):
+        return self.log(2)
+
+    def atan2(self, other):
+        if other > 0:
+            return (self/other).atan()
+        elif other < 0:
+            if self >= 0:
+                return (self/other).atan() + math.pi
+            else:
+                return (self/other).atan() - math.pi
+        else:
+            if self >= 0:
+                return type(self)(math.pi/2)
+            elif self < 0:
+                return type(self)(-math.pi/2)
+            else:
+                # math.atan2(0, 0) is pi/2, not NaN
+                return type(self)()
+
+class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
+    _MATH = cmath
+    _TYPE = complex
+    _ABSTYPE = numbers.Complex
+    _REAL = None
+
+    def __abs__(self):
+        return super().__abs__().real
+
+    def conjugate(self):
+        return type(self)(self.front.conjugate(), self.leading,
+                          ((q, a.conjugate()) for (q, a) in self.series))
+
+    @property
+    def real(self):
+        return self._REAL(self.front.real, self.leading,
+                          ((q, a.real) for (q, a) in self.series))
+
+    @property
+    def imag(self):
+        return self._REAL(self.front.imag, self.leading,
+                          ((q, a.imag) for (q, a) in self.series))
+
+    def phase(self):
+        return self.imag.atan2(self.real)
+
+    @classmethod
+    def rect(cls, r, phi):
+        x = cls(r * cos(phi))
+        y = cls(r * sin(phi))
+        return x + y*j
+
+    def polar(self):
+        return self.abs(), self.phase()
+
+def L(*args, **kw):
+    def _complex(val):
+        return (isinstance(arg, numbers.Complex) and
+                not isinstance(arg, numbers.Real))
+    args = list(args)
+    for i, arg in enumerate(args):
+        if _complex(arg):
+            return LeviCivitaComplex(*args, **kw)
+        if isinstance(arg, collections.Iterable):
+            args[i] = arg = tuple(arg)
+            if any(_complex(part) for part in arg):
+                return LeviCivitaComplex(*args, **kw)
+    return LeviCivitaFloat(*args, **kw)
+
+LeviCivitaFloat._COMPLEX = LeviCivitaComplex
+LeviCivitaComplex._REAL = LeviCivitaFloat
+
 change_terms = LeviCivitaBase.change_terms
 change_terms()
+
+epsilon = eps = d = ε = LeviCivitaFloat(1.0, 1)

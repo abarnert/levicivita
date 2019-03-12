@@ -47,20 +47,24 @@ instead of `LeviCivitaFloat(1.0, 0, ((0, 1.0), (1, 1.0)))`.
 However, if you want to use it interactively in a normal Python
 session, you can do that too. Either:
 
- * `from levicivita.real import *` or
- * `from levicivita.cpx import *`
+ * `from levicivita.lmath import *` or
+ * `from levicivita.lcmath import *`
 
 For non-interactive use, you probably don't want `import *` of course,
 but otherwise, everything is the same.
 
-The main user interface is:
+The package itself contains:
 
  * constant `ε`
   * also named named `eps` and `epsilon` (and `d`, for compatibility
     with the `inf` calculator)
   * `1/ε`, `2*ε`, `ε**2`, `1+ε`, `1+2j+(1-2j)*ε`, etc. give you any
     other L-C numbers you need
- * `math`/`cmath`-style functions, extended to deal with L-C numbers 
+ * `change_terms(n)` to change the approximation depth
+
+The `lmath` or `lcmath` module contains:
+
+* `math`/`cmath`-style functions, extended to deal with L-C numbers:
   * `phase(x)`, `polar(x)`, `rect(r, phi)` (complex only)
   * `ceil(x)`, `floor(x)`, `trunc(x)`, `round(x, digits)` (real only)
   * `fabs(x)`, `fmod(x)` (real only)
@@ -75,15 +79,14 @@ The main user interface is:
   * `infj`, `nanj` (complex only)
  * `st(x)` returns the standard (non-infinitestimal) part of `x`,
    raising an exception on infinite `x`
- * `change_terms(n)` to change the approximation depth
 
-Most of these should be obvious, except `isclose` and `change_terms`.
+Most of these should be obvious, except `isclose`.
 
 Two infinite numbers are close if they have the same leading exponent
 with coefficients that are close (ignoring `abs_tol`). Two finite
 numbers are close if their standard parts are close (by both `rel_tol`
 and `abs_tol`). Note that this means that two infinitesimals are
-always close.
+always close. This is subject to change in the future.
 
 L-C numbers are approximated to the first N terms (and of course to
 IEEE double values for coefficients), by default 5 (although twice as
@@ -114,6 +117,9 @@ if you need to:
 ... and likewise for `LeviCivitaFloat` (except of course that the
 `front` and the `series` coefficients must be real).
 
+The `L` shortcut creates a `LeviCivitaComplex` if any of its arguments
+are complex, a `LeviCivitaFloat` otherwise.
+
 # Automatic differentiation
 
 Given any Python function, you can calculate its derivative at any
@@ -124,7 +130,7 @@ infinitesimals.)
 
 To play with this:
 
-    import diff
+    from levicivita import diff
 	def func(x):
 	    return 2*x**3 + 3*x**2 + 4*x + 5
 	print(diff.derivative(func, 3))
@@ -135,20 +141,15 @@ same values you'd get by manually implementing the derivative function
 as `6*x**2 + 6*x + 4`.
 
 However, there is a big caveat. The function above works because the
-only thing it does with `x` is apply operators to it. If you tried to,
-say, call `math.gamma`, or any other function (that isn't recursively
-ultimately defined in terms of operators), you'd just get a
-`TypeError`. Sometimes you can remove the function call (e.g., replace
-`math.exp(x)` with `math.e ** x`, or `cmath.sqrt(x)` with `x**.5`). If
-the function you want to call is one of the ones provided by the
-`levicivita.real` package, you can use that in place of `math` (and
-likewise for `cmath`); you can even monkeypatch some existing code's
-globals to do that if you really want to. But if it's calling some
-other function (or some C extension like `numpy`), there's really no
-way around that.
+only thing it does with `x` is apply operators to it. If you use
+functions from `lmath` or `lcmath`, it will also work. However, if you
+use functions from `math` or `cmath` (like `math.gamma`), or C
+extension functions (e.g., anything from `numpy`), or anything that
+isn't recursively ultimately defined in terms of operators and
+`lmath`/`lcmath` functions, you'll just get a `TypeError`.
 
 Of course if you really want to do automatic differentiation, you
-could use a C implementation that hooks `libmath`. I believe
+could use a C implementation that hooks `libm`. I believe
 [`COSY`](https://www.bt.pa.msu.edu/index_cosy.htm) offers that
 functionality, for example.
 
@@ -317,6 +318,7 @@ which ones should end up within which error limits.
 
 # History
 
+ * 0.0.8 2019-03-12: types now in package; `lmath` and `lcmath` for functions
  * 0.0.7 2019-03-10: `LeviCivitaReal(1) + 0j` is now complex; add `calc.py`
  * 0.0.6 2019-03-10: better transcendentals, better tests, some refactoring
  * 0.0.5 2019-03-09: floordiv, mod
@@ -327,21 +329,17 @@ which ones should end up within which error limits.
 
 # TODO
 
- * Do we really need separate `ε` for the two types? Maybe just always
-   import the _package_, and `ε` is always Real, and use `+0j`/`*1j`
-   when you want complex numbers. The submodules can focus on
-   reproducing `math` vs. `cmath`, while reproducing `float`
-   vs. `complex` is part of the package.
+ * Do we really need separate `ε` for `lcmath`? Notice that, e.g.,
+   `cmath.pi` is a `float`, not a `complex`.
  * Consider adding other functions from `math`.
  * More refactoring.
  * It should be possible to write tests without all those ugly
-   `self.exp` and `self. ε` bits. (And to share more tests between
-   float and complex.)
+   `self.exp` and `self. ε` bits, especially now that you can easily
+   build complex numbers out of float `ε`. (And to share more tests
+   between float and complex.)
  * Consider changing `isclose`: maybe `rel_tol` should apply to
    `front` no matter what, and maybe we want an `eps_tol` or something
    to specify how many powers of epsilon we want to require to be close.
- * Are `exp(1/ε)`, `log(1/ε)`, `log(ε)`, etc. really out of range? If
-   not, implement them.
  * Should `isinf` and friends treat infinite numbers like `inf`? And
    should there even be an `inf = cmath.inf` instead of, say, `1/ε`?
  * Replace `change_terms` with something more like `decimal` contexts.
@@ -350,9 +348,12 @@ which ones should end up within which error limits.
  * Add more tests and more error handling.
  * Can I look deeper into implementation of `inf` despite GPL? There
    are a lot of places where I guessed at the implementation from the
-   function names, and may have gotten things wrong...
+   function names, and may have gotten things wrong... (Although I'm
+   not sure it's needed anymore at this point.)
  * Look at construction from `Fraction`. (Disallow? Convert to `float`?)
- * Consider working with `Decimal`.
+ * Consider working with `Decimal`. While `Decimal` and `complex`
+   don't play nicely, there's no reason you couldn't use Levi-Civita
+   reals with arbitrary-complexity decimals.
  * Construct from string?
  * Look over handling of `inf`, `nan`, etc., especially
    overflow/underflow.

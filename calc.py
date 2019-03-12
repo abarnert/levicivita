@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 
 import code
+import sys
 from textwrap import dedent
 
+# TODO: Do we need argparse here?
+imported_module = 'lmath'
+if len(sys.argv) > 1 and sys.argv[1] == '-c':
+    imported_module = 'lcmath'
+
 console = code.InteractiveConsole()
-for line in dedent('''\
+for line in dedent(f'''\
     import readline
     import levicivita
-    from levicivita.real import *
-    from levicivita import cpx
-    from levicivita import real
+    from levicivita import *
+    from levicivita.{imported_module} import *
+    from levicivita import lmath
+    from levicivita import lcmath
     levicivita.LeviCivitaBase._repr = levicivita.LeviCivitaBase.__repr__
     levicivita.LeviCivitaBase.__repr__ = levicivita.LeviCivitaBase.__str__
     ''').splitlines():
@@ -31,4 +38,7 @@ console.interact(banner=dedent('''\
 
         >>> sin(pi/2+ε)
         1+(2.47373e-05)*ε-0.499922*ε**2+0.000149087*ε**3+0.0418552*ε**4
+        >>> sin(pi/2+(pi/2)*1j+eps)
+        (2.50907+0.000118719j)+(3.01328e-05-2.30049j)*ε-(1.25325+0.00122417j)*ε**2+(0.00244634+0.383416j)*ε**3+(0.105998-0.0016626j)*ε**4
     '''))
+

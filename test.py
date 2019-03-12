@@ -6,8 +6,8 @@ import unittest
 
 from unittest.util import safe_repr as sr
 
-from levicivita import cpx
-from levicivita import real
+from levicivita import lmath
+from levicivita import lcmath
 
 class _TestBaseLeviCivita(unittest.TestCase):
     def setUp(self):
@@ -78,8 +78,8 @@ class _TestBaseLeviCivita(unittest.TestCase):
 class TestLeviCivitaFloat(_TestBaseLeviCivita):
     _MATHMOD = math
     _MATHCLASS = float
-    _LCMOD = real
-    _LCCLASS = real.LeviCivitaFloat
+    _LCMOD = lmath
+    _LCCLASS = lmath.LeviCivitaFloat
     
     def assertLess(self, first, second, msg=None):
         if first < second:
@@ -102,9 +102,9 @@ class TestLeviCivitaFloat(_TestBaseLeviCivita):
 
     def test_complex(self):
         with self.assertRaises(TypeError):
-            self.L(cpx.L(2))
+            self.L(lcmath.L(2))
         with self.assertRaises(TypeError):
-            self.L(cpx.ε)
+            self.L(lcmath.ε)
         with self.assertRaises(TypeError):
             self.L(2j)
 
@@ -193,8 +193,8 @@ class TestLeviCivitaFloat(_TestBaseLeviCivita):
 class TestLeviCivitaComplex(_TestBaseLeviCivita):
     _MATHMOD = cmath
     _MATHCLASS = complex
-    _LCMOD = cpx
-    _LCCLASS = cpx.LeviCivitaComplex
+    _LCMOD = lcmath
+    _LCCLASS = lcmath.LeviCivitaComplex
     
     def assertSmallerMagnitude(self, first, second, msg=None):
         mfirst, msecond = abs(self.L(first)), abs(self.L(second))
