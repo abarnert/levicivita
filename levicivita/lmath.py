@@ -15,7 +15,7 @@ from . import *
 #   expm1, log1p
 #   erf, erfc
 
-_UNARY_NAMES = '''exp log log10 log2 sqrt hypot fabs modf
+_UNARY_NAMES = '''exp log10 log2 sqrt hypot fabs modf
                   degrees radians
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
                   isnan isinf isfinite'''.split()
@@ -27,7 +27,7 @@ _DUNDER_NAMES = '''ceil floor round trunc'''.split()
 _EXTRA_NAMES = tuple(_UNARY_NAMES + _BINARY_NAMES + _DUNDER_NAMES)
 
 __all__ = ('LeviCivitaFloat', 'epsilon', 'eps', 'd', 'ε', 'L',
-           'log', 'isclose', 'st', 'change_terms',
+           'log', 'isclose', 'st', 'derivative', 'change_terms',
            'e', 'nan', 'pi', 'tau', 'inf') + _EXTRA_NAMES
 
 for name in _UNARY_NAMES:

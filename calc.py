@@ -17,6 +17,7 @@ for line in dedent(f'''\
     from levicivita.{imported_module} import *
     from levicivita import lmath
     from levicivita import lcmath
+    from levicivita.diff import derivative
     levicivita.LeviCivitaBase._repr = levicivita.LeviCivitaBase.__repr__
     levicivita.LeviCivitaBase.__repr__ = levicivita.LeviCivitaBase.__str__
     ''').splitlines():

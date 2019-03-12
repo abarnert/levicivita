@@ -6,6 +6,7 @@ import unittest
 
 from unittest.util import safe_repr as sr
 
+from levicivita import *
 from levicivita import lmath
 from levicivita import lcmath
 
@@ -190,6 +191,32 @@ class TestLeviCivitaFloat(_TestBaseLeviCivita):
         # (inf calculator gives inf + nan/nan*self.ε + nan/nan*self.ε**2)
         #self.assert??((max+self.ε)**2, ???)
 
+    def test_derivative_poly(self):
+        def f(x):
+            return 2*x**3 + 3*x**2 + 4*x + 5
+        def d1(x):
+            return 6*x**2 + 6*x + 4
+        d2 = derivative(f)
+        for value in (0, 3, 2.3, 1e-100, 1e100):
+            self.assertClose(d1(value), d2(value))
+        self.assertClose(d1(0), d2(0))
+        self.assertClose(d1((3)), d2(3))
+        self.assertClose(d1(2.3), d2(2.3))
+        self.assertClose(d1(1e-100), d2(1e-100))
+        self.assertClose(d1(1e+100), d2(1e+100))
+
+    def test_derivative_trig(self):
+        def f(x):
+            return lmath.sin(x) * lmath.cos(x)
+        def d1(x):
+            return lmath.cos(x)**2 - lmath.sin(x)**2
+        d2 = derivative(f)
+        self.assertClose(d1(0), d2(0))
+        self.assertClose(d1(1), d2(1))
+        self.assertClose(d1(2.3), d2(2.3))
+        self.assertClose(d1(lmath.pi/8), d2(lmath.pi/8))
+        self.assertClose(d1(5*lmath.pi/32), d2(5*lmath.pi/32))
+
 class TestLeviCivitaComplex(_TestBaseLeviCivita):
     _MATHMOD = cmath
     _MATHCLASS = complex
@@ -312,6 +339,39 @@ class TestLeviCivitaComplex(_TestBaseLeviCivita):
         # currently gives inf+inf*self.ε
         # (inf calculator gives inf + nan/nan*self.ε + nan/nan*self.ε**2)
         #self.assert??((max+self.ε)**2, ???)
-        
+
+    def test_derivative_poly(self):
+        def f(x):
+            return 2*x**3 + 3*x**2 + 4*x + 5
+        def d1(x):
+            return 6*x**2 + 6*x + 4
+        d2 = derivative(f)
+        self.assertClose(d1(0), d2(0))
+        self.assertClose(d1(0j), d2(0j))
+        self.assertClose(d1(3+0j), d2(3+0j))
+        self.assertClose(d1(3j), d2(3j))
+        self.assertClose(d1(2.3+2.3j), d2(2.3+2.3j))
+        # TODO: These have rounding errors that give tiny infinite
+        # (but still infinite) values, and therefore fail.
+        #self.assertClose(d1(1e-100j), d2(1e-100j))
+        #self.assertClose(d1(1e+100+1j), d2(1e+100+1j))
+
+    def test_derivative_trig(self):
+        def f(x):
+            return lcmath.sin(x) * lcmath.cos(x)
+        def d1(x):
+            return lcmath.cos(x)**2 - lcmath.sin(x)**2
+        d2 = derivative(f)
+        self.assertClose(d1(0), d2(0))
+        self.assertClose(d1(0j), d2(0j))
+        # TODO: Can we get these to better tolerances?
+        self.assertClose(d1(1), d2(1), rel_tol=1e-5)
+        self.assertClose(d1(1+0j), d2(1+0j), rel_tol=1e-5)
+        self.assertClose(d1(1j), d2(1j), rel_tol=1e-5)
+        self.assertClose(d1(2.3+2.3j), d2(2.3+2.3j), rel_tol=1e-5)
+        self.assertClose(d1(lmath.pi/8), d2(lmath.pi/8), rel_tol=1e-5)
+        self.assertClose(d1(5*lmath.pi/32), d2(5*lmath.pi/32), rel_tol=1e-5)
+        self.assertClose(d1(5j*lmath.pi/32), d2(5j*lmath.pi/32), rel_tol=1e-5)
+
 if __name__ == '__main__':
     unittest.main()

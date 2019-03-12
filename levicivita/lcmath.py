@@ -6,13 +6,13 @@ import cmath
 
 from . import *
 
-_UNARY_NAMES = '''exp log log10 sqrt 
+_UNARY_NAMES = '''exp log10 sqrt 
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
                   phase polar
                   isnan isinf isfinite'''.split()
 
 __all__ = ('LeviCivitaComplex', 'epsilon', 'eps', 'd', 'ε', 'L',
-           'log', 'isclose', 'st', 'change_terms',
+           'log', 'isclose', 'st', 'derivative', 'change_terms',
            'e', 'nan', 'nanj', 'pi', 'tau', 'inf', 'infj') + tuple(_UNARY_NAMES)
 
 for name in _UNARY_NAMES:

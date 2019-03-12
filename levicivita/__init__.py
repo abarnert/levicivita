@@ -15,11 +15,12 @@ import types
 # debug only
 import inspect
 
-__version__ = '0.0.8'
+__version__ = '0.0.9'
 
 __all__ = ('LeviCivitaBase', 'LeviCivitaFloat', 'LeviCivitaComplex',
            'L', 'change_terms',
-           'epsilon', 'eps', 'd', 'ε')
+           'epsilon', 'eps', 'd', 'ε',
+           'derivative')
 
 def _debugmethod(func):
     return func
@@ -755,3 +756,5 @@ change_terms = LeviCivitaBase.change_terms
 change_terms()
 
 epsilon = eps = d = ε = LeviCivitaFloat(1.0, 1)
+
+from .diff import derivative
