@@ -332,6 +332,7 @@ which ones should end up within which error limits.
 
 # History
 
+ * 0.1.1 2019-03-12: `gamma`, bugs
  * 0.1.0 2019-03-12: `terms`, better `isclose`
  * 0.0.9 2019-03-12: incorporate `derivative`
  * 0.0.8 2019-03-12: types now in package; `lmath` and `lcmath` for functions
@@ -345,6 +346,11 @@ which ones should end up within which error limits.
 
 # TODO
 
+ * `gamma` gets increasingly inaccurate below 1.0, and raises
+   `ValueError` below 0.1. There's probably a better approximation to
+   use?
+ * In Python, (-2)**.5 is complex, but `math.sqrt` is a `ValueError`.
+   Make sure we've handled all the appropriate cases appropriately.
  * Do we really need separate `ε` for `lcmath`? Notice that, e.g.,
    `cmath.pi` is a `float`, not a `complex`.
  * Consider adding other functions from `math`.

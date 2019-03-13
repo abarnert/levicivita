@@ -15,7 +15,7 @@ import types
 # debug only
 import inspect
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 __all__ = ('LeviCivitaBase', 'LeviCivitaFloat', 'LeviCivitaComplex',
            'L', 'change_terms',
@@ -106,7 +106,7 @@ class LeviCivitaBase(abc.ABC):
             yield (last_q, last_aq)
 
     @classmethod
-    @_debugmethod
+    #@_debugmethod
     def _normalize(cls, front, leading, series):
         #print(f'normalizing {front}, {leading}, {series}')
         # TODO: Do we really need to sort, instead of just building a Counter?
@@ -203,15 +203,15 @@ class LeviCivitaBase(abc.ABC):
         # TODO: we probably need to abs the coefficients in the series?
         return type(self)(abs(self.front), self.leading, self.series)
 
-    @_debugmethod
+    #@_debugmethod
     def __neg__(self):
         return type(self)(-self.front, self.leading, self.series)
 
-    @_debugmethod
+    #@_debugmethod
     def __pos__(self):
         return self
 
-    @_debugmethod
+    #@_debugmethod
     @_coerce_binop
     def __add__(self, other):
         if not isinstance(other, type(self)):
@@ -228,12 +228,12 @@ class LeviCivitaBase(abc.ABC):
 
     __radd__ = __add__
 
-    @_debugmethod
+    #@_debugmethod
     @_coerce_binop
     def __sub__(self, other):
         return self + -other
 
-    @_debugmethod
+    #@_debugmethod
     @_coerce_binop
     def __rsub__(self, other):
         return -self + other
@@ -337,14 +337,18 @@ class LeviCivitaBase(abc.ABC):
             r = r * self
         return r
 
+    @_debugmethod
     @_coerce_binop
     def __pow__(self, p):
         if isinstance(p, numbers.Integral):
             return self._intpow(p)
+        if (isinstance(self, numbers.Real) and self < 0 and
+            (not isinstance(p, numbers.Real) or p != int(p))):
+            self = self._COMPLEX(self)
         if isinstance(p, LeviCivitaBase):
             return (self.log() * p).exp()
-        if not self.leading:
-            return type(self)(self._MATH.exp(self.log() * p))
+        #if not self.leading:
+        #    return type(self)(self._MATH.exp(self.log() * p))
         if not isinstance(p, numbers.Rational):
             try:
                 p = fractions.Fraction(p)
@@ -431,11 +435,11 @@ class LeviCivitaBase(abc.ABC):
         # borderline reasonable the approximations are all Taylor series
         # to 2*_DISPLAY_TERMS terms, but it still feels horrible, and
         # probably should...
-        ignore_coeff = max_coeff * rel_tol**2
+        ignore_coeff = max_coeff * rel_tol**3
         sterms = tuple((q, a) for (q, a) in sterms
-                       if not _isclose(a, 0, abs_tol=ignore_coeff))
+                       if not _isclose(a, 0, abs_tol=ignore_coeff)) or ((0, 1),)
         oterms = tuple((q, a) for (q, a) in oterms
-                       if not _isclose(a, 0, abs_tol=ignore_coeff))
+                       if not _isclose(a, 0, abs_tol=ignore_coeff)) or ((0, 1),)
         if _isclose(sterms[0][1], oterms[0][1], rel_tol=rel_tol, abs_tol=0):
             return True
         if sterms[0][0] == oterms[0][1]:
@@ -447,16 +451,28 @@ class LeviCivitaBase(abc.ABC):
                     return True
         return False
 
+    # TODO: exp(85) ~ 8e36, exp(L(85)) ~ 4e19!
+    @_debugmethod
     def exp(self):
         # This diverges for infinite values, to infinities too large
         # to approximate in a finite Levi-Civita series. Which makes
         # sense once you think about it.
         if self.leading < 0:
             raise OverflowError('cannot exponentiate infinite')
+        mag = abs(self.front)
+        if mag != 1:
+            if isinstance(self.front, complex):
+                r, theta = cmath.polar(self.front)
+                u = cmath.rect(1, theta)
+            else:
+                u = math.copysign(1, self.front)
+            return type(self)(u, self.leading, self.series).exp() ** mag
+        
         # TODO: this seems to be the one place where 5/10 terms is
         # nowhere near enough...
         return self.expand_inv(math.factorial(i) for i in itertools.count())
 
+    @_debugmethod
     def log(self, base=math.e):
         # TODO: is this correct?
         if not self.front:
@@ -551,6 +567,17 @@ class LeviCivitaBase(abc.ABC):
 
     def atanh(self):
         return ((1 + self) / (1 - self)).log() / 2
+
+    # TODO: For small values (below ~ 0.1), the inside of that **x becomes
+    # negative, which means we would get a complex result. For example,
+    # gamma(.09) ~ 10.6, but this approximation gives ~ 10.0+2.9j (or raises
+    # a ValueError). The Windschitl version doesn't raise at that point,
+    # but gets even farther away from the correct value (~ 9.0).
+    # TODO: stdlib uses Lanczos instead of Stirling; consider that here?
+    def gamma(self):
+        # Nemes version of Windschitl approximation of Stirling approximation
+        x = self
+        return (2*math.pi/x)**.5 * (1/math.e * (x + (1 / (12*x - 1/(10*x)))))**x
 
     @classmethod
     def _generate_taylor(cls, f, *, terms=None):

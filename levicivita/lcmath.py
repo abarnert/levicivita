@@ -6,7 +6,10 @@ import cmath
 
 from . import *
 
-_UNARY_NAMES = '''exp log10 sqrt 
+# NOTE: There is no cmath.gamma. We could implement lcmath.gamma anyway,
+# just without the fallthrough?
+
+_UNARY_NAMES = '''exp log10 sqrt
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
                   phase polar
                   isnan isinf isfinite'''.split()

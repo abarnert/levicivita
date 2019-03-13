@@ -155,8 +155,8 @@ class TestLeviCivitaFloat(_TestBaseLeviCivita):
                          sum((1/math.factorial(i))*self.ε**i
                              for i in range(self.ε._TERMS)))
         self.assertClose(self.cos(self.sin(self.cos(self.sin(self.ε)))),
-                         .666367, rel_tol=1e-6)        
-        self.assertEqual((1+self.ε)**self.pi, 1)
+                         .666367, rel_tol=1e-6)
+        self.assertClose((1+self.ε)**self.pi, 1+self.pi*self.ε)
         # This is really testing internal implementaton details, so it's
         # probably not a great test...
         self.assertEqual(self.ε**self.pi, self.ε**(2**-48))
@@ -365,7 +365,7 @@ class TestLeviCivitaComplex(_TestBaseLeviCivita):
                              for i in range(self.ε._TERMS)))
         self.assertClose(self.cos(self.sin(self.cos(self.sin(self.ε)))),
                          .666367, rel_tol=1e-6)        
-        self.assertEqual((1+self.ε)**self.pi, 1)
+        self.assertClose((1+self.ε)**self.pi, 1+self.pi*self.ε)
         # This is really testing internal implementaton details, so it's
         # probably not a great test...
         self.assertEqual(self.ε**self.pi, self.ε**(2**-48))

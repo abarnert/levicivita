@@ -3,11 +3,12 @@ with functions on Levi-Civita real (including infinite and infinitesimal).
 """
 
 import math
+import numbers
 
 from . import *
 
 # math functions not covered (as of Python 3.7):
-#   factorial, gamma, lgamma
+#   factorial, lgamma
 #   frexp, ldexp
 #   fsum
 #   gcd
@@ -15,7 +16,7 @@ from . import *
 #   expm1, log1p
 #   erf, erfc
 
-_UNARY_NAMES = '''exp log10 log2 sqrt hypot fabs modf
+_UNARY_NAMES = '''exp log10 log2 sqrt hypot fabs modf gamma
                   degrees radians
                   sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh 
                   isnan isinf isfinite'''.split()
@@ -34,7 +35,10 @@ for name in _UNARY_NAMES:
     exec(f"""
 def {name}(x, **kw):
     try:
-        return x.{name}(**kw)
+        result = x.{name}(**kw)
+        if not isinstance(result, numbers.Real):
+            raise ValueError('math domain error')
+        return result
     except AttributeError:
         pass
     return math.{name}(x, **kw)
