@@ -687,7 +687,7 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
         return self * math.radians(1)
 
     def modf(self):
-        intpart = trunc(self)
+        intpart = self.__trunc__()
         return self-intpart, intpart
 
     def __ceil__(self):
@@ -714,16 +714,16 @@ class LeviCivitaFloat(LeviCivitaBase, numbers.Real):
         return float(self.st())
 
     def __floordiv__(self, other):
-        return floor(self / other)
+        return (self / other).__floor__()
 
     def __rfloordiv__(self, other):
-        return floor(other / self)
+        return (other / self).__floor__()
 
     def __mod__(self, other):
         return self - self//other
 
     def __rmod__(self, other):
-        return other - floor(other/self)
+        return other - (other/self).__floor__()
 
     def conjugate(self):
         return self
@@ -792,8 +792,12 @@ class LeviCivitaComplex(LeviCivitaBase, numbers.Complex):
 
     @classmethod
     def rect(cls, r, phi):
-        x = cls(r * cos(phi))
-        y = cls(r * sin(phi))
+        if isinstance(phi, LeviCivitaBase):
+            x = cls(r * phi.cos())
+            y = cls(r * phi.sin())
+        else:
+            x = cls(r * self._MATH.cos(phi))
+            y = cls(r * self._MATH.sin(phi))
         return x + y*j
 
     def polar(self):
