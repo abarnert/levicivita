@@ -332,6 +332,7 @@ which ones should end up within which error limits.
 
 # History
 
+ * 0.1.0 2019-03-12: `terms`, better `isclose`
  * 0.0.9 2019-03-12: incorporate `derivative`
  * 0.0.8 2019-03-12: types now in package; `lmath` and `lcmath` for functions
  * 0.0.7 2019-03-10: `LeviCivitaReal(1) + 0j` is now complex; add `calc.py`
@@ -352,15 +353,14 @@ which ones should end up within which error limits.
    `self.exp` and `self. ε` bits, especially now that you can easily
    build complex numbers out of float `ε`. (And to share more tests
    between float and complex.)
- * Consider changing `isclose`: maybe `rel_tol` should apply to
-   `front` no matter what, and maybe we want an `eps_tol` or something
-   to specify how many powers of epsilon we want to require to be
-   close.
- * We probably need a way to discard terms with coefficients whose
-   magnitude is much smaller than `front`: e.g., `1 + (1e-300)*ε**-1`
-   is an infinite number, but it's almost certainly the result of a
-   rounding error and should just be `1`. Notice that two of the tests
-   on `derivative` fail because of this.
+ * `isclose` still needs work. We need a way to specify an `abs_tol`
+   of "any infinitesimal", and a way to specify a `rel_tol` that lets
+   us ignore the tiny infinite terms that come out of many
+   approximations without ignoring the actual real term because of the
+   huge infinitesimal terms.
+ * `st` needs a way to specify similar rounding errors as `isclose`,
+   so when something returns `1e-37/ε + 2` we can get the `2`. Notice
+   that two of the tests on `derivative` fail because of this.
  * Should `isinf` and friends treat infinite numbers like `inf`? And
    should there even be an `inf = cmath.inf` instead of, say, `1/ε`?
  * Replace `change_terms` with something more like `decimal` contexts.

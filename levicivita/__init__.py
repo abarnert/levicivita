@@ -15,7 +15,7 @@ import types
 # debug only
 import inspect
 
-__version__ = '0.0.9'
+__version__ = '0.1.0'
 
 __all__ = ('LeviCivitaBase', 'LeviCivitaFloat', 'LeviCivitaComplex',
            'L', 'change_terms',
@@ -36,7 +36,7 @@ def _debugmethod(func):
 
 class LeviCivitaBase(abc.ABC):
     # form is front*d^leading*(sum a_q*d^q), where all q's are >0
-    __slots__ = ('front', 'leading', 'series')
+    _slots_ = ('front', 'leading', 'series')
 
     def __new__(cls, front=None, leading=None, series=None):
         """Construct a Levi-Civita number"""
@@ -126,9 +126,18 @@ class LeviCivitaBase(abc.ABC):
             #print(f'  add-normalized to {front}, {leading}, {series}')
         return cls._TYPE(front), leading, series
 
+    # TODO: Maybe this should yield coeff*ε**exp instead of (exp, coeff),
+    #       and there should be a lower-level function for the latter?
+    @property
+    def terms(self):
+        """x.terms() -> (exp, coeff) pairs for the terms of x"""
+        for (q, a) in self.series:
+            yield (q+self.leading, a*self.front)
+    
     def __repr__(self):
         return f'{type(self).__name__}({self.front}, {self.leading}, {self.series})'
 
+    # TODO: We should be able to rewrite this using self.terms?
     def __str__(self):
         if self.isnan():
             return 'nan'
@@ -396,17 +405,47 @@ class LeviCivitaBase(abc.ABC):
     def isfinite(self):
         return not self.isinf()
 
+    @_coerce_binop
+    # TODO: Need a way to say abs_tol=any_infinitesimal. You can use
+    #       abs_tol=sys.float_info.min, but that's pretty horrible.
     def isclose(self, other, *, rel_tol=1e-09, abs_tol=0.0):
         if self._isnan(self) or self._isnan(other):
             return False
-        if self._isinf(self) or self._isinf(other):
-            other = type(self)(other)
-            return (self.leading == other.leading and
-                    cmath.isclose(self.front, other.front, rel_tol=rel_tol))
-        if isinstance(other, LeviCivitaBase):
-            other = other.st()
-        # TODO: abs?
-        return cmath.isclose(self.st(), other, rel_tol=rel_tol, abs_tol=abs_tol)
+        try:
+            ofront = other.front
+        except AttributeError:
+            ofront = other
+        if self._MATH.isinf(self.front) or self._MATH.isinf(ofront):
+            return self.front == ofront
+        if not rel_tol and not abs_tol:
+            return self == other
+        _isclose = self._MATH.isclose
+        sterms = tuple(self.terms)
+        try:
+            oterms = tuple(other.terms)
+        except AttributeError:
+            oterms = ((0, other),)
+        max_coeff = max(abs(a) for (q, a) in sterms+oterms)
+        # HACK! We want, e.g., 1e-18*1/ε + 1 to be close to 1, but we
+        # also want 1 + 1e9*ε to be close to 1. Squaring rel_tol is
+        # borderline reasonable the approximations are all Taylor series
+        # to 2*_DISPLAY_TERMS terms, but it still feels horrible, and
+        # probably should...
+        ignore_coeff = max_coeff * rel_tol**2
+        sterms = tuple((q, a) for (q, a) in sterms
+                       if not _isclose(a, 0, abs_tol=ignore_coeff))
+        oterms = tuple((q, a) for (q, a) in oterms
+                       if not _isclose(a, 0, abs_tol=ignore_coeff))
+        if _isclose(sterms[0][1], oterms[0][1], rel_tol=rel_tol, abs_tol=0):
+            return True
+        if sterms[0][0] == oterms[0][1]:
+            if sterms[0][0] > 0 and abs_tol:
+                return True
+            if sterms[0][0] == 0:
+                if _isclose(sterms[0][1], oterms[0][1],
+                            rel_tol=0, abs_tol=abs_tol):
+                    return True
+        return False
 
     def exp(self):
         # This diverges for infinite values, to infinities too large
@@ -530,8 +569,6 @@ class LeviCivitaBase(abc.ABC):
     def change_terms(cls, terms=5):
         cls._DISPLAY_TERMS = terms
         cls._TERMS = 2*terms
-        cls._TAYLOR_EXP = cls._generate_taylor(lambda i, l: l/i if i else 1)
-        cls._TAYLOR_LOG = cls._generate_taylor(lambda i, l: -(l/abs(l))/i if i>1 else i)
 
 @functools.total_ordering
 class LeviCivitaFloat(LeviCivitaBase, numbers.Real):

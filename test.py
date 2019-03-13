@@ -17,9 +17,12 @@ class _TestBaseLeviCivita(unittest.TestCase):
             setattr(self, name, func)
         self.L = self._LCCLASS
         self.L.change_terms(10)
-    
+
+    # TODO: Stop using sys.float_info.min here
+    # Used for testing that approximations are close enough, not for
+    # testing isclose itself.
     def assertClose(self, first, second, msg=None, *,
-                    rel_tol=1e-09, abs_tol=0.0):
+                    rel_tol=1e-09, abs_tol=sys.float_info.min):
         if self.isnan(first) and self.isnan(second):
             return
         if self.isclose(first, second, rel_tol=rel_tol, abs_tol=abs_tol):
@@ -29,6 +32,24 @@ class _TestBaseLeviCivita(unittest.TestCase):
         standardMsg = f'{first} != {second} ({sr(first)} != {sr(second)}) within rel_tol {rel_tol}, abs_tol {abs_tol} ({stdiff} difference)'
         msg = self._formatMessage(msg, standardMsg)
         raise self.failureException(msg)
+
+    # The following four functions are borrowed from the stdlib
+    # regression test suite.
+    def assertIsClose(self, a, b, *args, **kwargs):
+        self.assertTrue(self.isclose(a, b, *args, **kwargs),
+                        msg="%s and %s should be close!" % (a, b))
+
+    def assertIsNotClose(self, a, b, *args, **kwargs):
+        self.assertFalse(self.isclose(a, b, *args, **kwargs),
+                         msg="%s and %s should not be close!" % (a, b))
+
+    def assertAllClose(self, examples, *args, **kwargs):
+        for a, b in examples:
+            self.assertIsClose(a, b, *args, **kwargs)
+
+    def assertAllNotClose(self, examples, *args, **kwargs):
+        for a, b in examples:
+            self.assertIsNotClose(a, b, *args, **kwargs)
     
     def assertMathTest(self, funcname, value, *args, **kwargs):
         msg = kwargs.pop('msg', None)
@@ -168,7 +189,8 @@ class TestLeviCivitaFloat(_TestBaseLeviCivita):
         self.assertEqual(self.st(self.ε), 0)
         self.assertEqual(self.st(1+2*self.ε), 1)
         self.assertEqual(self.st((1+self.ε)*self.ε), 0)
-        
+
+    # TODO: more tests
     def test_str(self):
         self.assertEqual(str(self.L(1)+self.ε), "1+ε")
         self.assertEqual(str(1-self.ε), "1-ε")
@@ -217,6 +239,61 @@ class TestLeviCivitaFloat(_TestBaseLeviCivita):
         self.assertClose(d1(lmath.pi/8), d2(lmath.pi/8))
         self.assertClose(d1(5*lmath.pi/32), d2(5*lmath.pi/32))
 
+# TODO: Come up with more tests for infinitesimal and infinite
+#       closeness, and implement for complex as well as float.
+class TestLeviCivitaFloatIsClose(TestLeviCivitaFloat):
+    # Borrowed from IsCloseTests from stdlib regression test suite
+    def test_negative_tolerances(self):
+        # ValueError should be raised if either tolerance is less than zero
+        with self.assertRaises(ValueError):
+            self.assertIsClose(1, 1, rel_tol=-1e-100)
+        with self.assertRaises(ValueError):
+            self.assertIsClose(1, 1, rel_tol=-1e-100)
+
+    def test_identical(self):
+        # identical values must test as close
+        identical_examples = [(2.0, 2.0),
+                              (0.1e200, 0.1e200),
+                              (1.123e-300, 1.123e-300),
+                              (12345, 12345.0),
+                              (0.0, -0.0),
+                              (345678, 345678)]
+        self.assertAllClose(identical_examples, rel_tol=0.0, abs_tol=0.0)
+        identical_eps_examples = [(x+self.ε, y+self.ε)
+                                  for (x, y) in identical_examples]
+        self.assertAllClose(identical_eps_examples, rel_tol=0.0, abs_tol=0.0)
+        identical_pluseps_examples = [(1+x*self.ε, 1+y*self.ε)
+                                      for (x, y) in identical_examples]
+        self.assertAllClose(identical_eps_examples, rel_tol=0.0, abs_tol=0.0)
+        identical_infinitesimal_examples = [(x*self.ε, y*self.ε)
+                                            for (x, y) in identical_examples]
+        self.assertAllClose(identical_infinitesimal_examples,
+                            rel_tol=0.0, abs_tol=0.0)
+        identical_infinite_examples = [(x/self.ε, y/self.ε)
+                                       for (x, y) in identical_examples]
+        self.assertAllClose(identical_infinite_examples,
+                            rel_tol=0.0, abs_tol=0.0)
+
+    def test_eight_decimal_places(self):
+        # examples that are close to 1e-8, but not 1e-9
+        eight_decimal_places_examples = [(1e8, 1e8 + 1),
+                                         (-1e-8, -1.000000009e-8),
+                                         (1.12345678, 1.12345679),
+                                         (1e8+self.ε, 1e8+1),
+                                         (1e8, 1e8+1+self.ε)]
+        self.assertAllClose(eight_decimal_places_examples, rel_tol=1e-8)
+        self.assertAllNotClose(eight_decimal_places_examples, rel_tol=1e-9)
+        
+    def test_near_zero(self):
+        # values close to zero
+        near_zero_examples = [(1e-9, 0.0),
+                              (-1e-9, 0.0),
+                              (-1e-150, 0.0)]
+        # these should not be close to any rel_tol
+        self.assertAllNotClose(near_zero_examples, rel_tol=0.9)
+        # these should be close to abs_tol=1e-8
+        self.assertAllClose(near_zero_examples, abs_tol=1e-8)
+        
 class TestLeviCivitaComplex(_TestBaseLeviCivita):
     _MATHMOD = cmath
     _MATHCLASS = complex
